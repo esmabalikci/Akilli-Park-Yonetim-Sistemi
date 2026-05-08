@@ -3,6 +3,7 @@ import React from 'react';
 import LostFoundScreen from './screens/LostFoundScreen.js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import EventsScreen from './screens/EventsScreen.js';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LoginScreen from './screens/LoginScreen.js';
@@ -92,6 +93,11 @@ export default function App() {
               headerTitleAlign: 'center',
             }}
           />
+<Stack.Screen
+  name="Events"
+  component={EventsScreen}
+  options={{ headerShown: false }}
+/>
 
           <Stack.Screen
             name="Profile"

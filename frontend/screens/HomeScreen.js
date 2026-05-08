@@ -42,6 +42,11 @@ export default function HomeScreen({ route, navigation }) {
       return;
     }
 
+    if (item.route === 'Events') {
+      navigation.navigate('Events');
+      return;
+    }
+
     if (item.route === 'LostFound') {
       navigation.navigate('LostFound');
       return;
