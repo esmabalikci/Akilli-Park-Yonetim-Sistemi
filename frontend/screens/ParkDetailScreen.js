@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,102 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { getApiBaseUrl } from '../config/api';
 
-export default function ParkDetailScreen({ route }) {
+// İsteğe bağlı: Kullanıcı bilgilerini tuttuğunuz bir Auth Context veya Global State import edebilirsiniz.
+// Örneğin: import { useAuth } from '../context/AuthContext';
+
+export default function ParkDetailScreen({ route, navigation }) {
   const { park } = route.params;
 
-  const handleReservation = () => {
-    Alert.alert(
-      'Rezervasyon',
-      `${park.name} için rezervasyon ekranına geçilecek.`
-    );
+  // Eğer Context API kullanıyorsanız:
+  // const { user } = useAuth();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [date, setDate] = useState(new Date());
+  const [mode, setMode] = useState('date');
+  const [show, setShow] = useState(false);
+
+  const [startTime, setStartTime] = useState(new Date());
+  const [endTime, setEndTime] = useState(new Date(new Date().getTime() + 60 * 60 * 1000)); // Varsayılan 1 saat
+
+  const onChange = (event, selectedDate) => {
+    const currentDate = selectedDate || date;
+    setShow(Platform.OS === 'ios');
+
+    if (mode === 'date') {
+      setDate(currentDate);
+      setMode('time');
+      setShow(true);
+    } else {
+      setStartTime(currentDate);
+      const newEndTime = new Date(currentDate.getTime() + 60 * 60 * 1000);
+      setEndTime(newEndTime);
+      setShow(false);
+      setMode('date');
+    }
+  };
+
+  const showMode = (currentMode) => {
+    setShow(true);
+    setMode(currentMode);
+  };
+
+  const handleReservation = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      console.log('Bağlanılan Adres:', `${baseUrl}/api/reservations`);
+
+      // Kullanıcının oturum bilgilerine göre UserId alanını şekillendiriyoruz.
+      // Eğer kullanıcı ID'niz bir global state veya context'te tutuluyorsa user.id olarak güncelleyebilirsiniz.
+      const currentUserId = 1; // user?.id || 1; 
+
+      const requestBody = {
+        UserId: currentUserId,
+        PicnicAreaId: park.id || park.Id || 1,
+        StartTime: startTime.toISOString(),
+        EndTime: endTime.toISOString(),
+        Status: 'Aktif',
+        CreatedAt: new Date().toISOString(),
+      };
+
+      console.log('Gönderilen JSON Verisi:', JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(`${baseUrl}/api/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseText = await response.text();
+      console.log('Sunucu Yanıt Kodu:', response.status);
+      console.log('Sunucu Yanıt Metni:', responseText);
+
+      if (response.ok) {
+        setModalVisible(false);
+        Alert.alert(
+          'Başarılı',
+          'Rezervasyonunuz veritabanına kaydedildi.',
+          [
+            {
+              text: 'Tamam',
+              onPress: () => navigation.navigate('ReservationScreen', { park }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Hata', 'Kayıt başarısız: ' + responseText);
+      }
+    } catch (error) {
+      console.error('Bağlantı Hatası Detayı:', error);
+      Alert.alert('Hata', 'Sunucuya bağlanılamadı. Hata: ' + error.message);
+    }
   };
 
   return (
@@ -37,7 +123,7 @@ export default function ParkDetailScreen({ route }) {
             <Text style={styles.statusText}>{park.status}</Text>
           </View>
         </View>
-        
+
         <Text style={styles.location}>📍 {park.location}</Text>
 
         <View style={styles.infoGrid}>
@@ -65,31 +151,67 @@ export default function ParkDetailScreen({ route }) {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Etkinlikler</Text>
-        <View style={styles.activitiesContainer}>
-          {Array.isArray(park.activities) && park.activities.length > 0 ? park.activities.map((activity, index) => (
-            <View key={index} style={styles.activityBadge}>
-              <Text style={styles.activityText}>{activity}</Text>
-            </View>
-          )) : (
-            <Text style={styles.description}>Etkinlik bilgisi bulunmuyor.</Text>
-          )}
-        </View>
-
         <Text style={styles.sectionTitle}>Açıklama</Text>
         <Text style={styles.description}>{park.description}</Text>
 
-        <Text style={styles.sectionTitle}>Müsaitlik Bilgisi</Text>
-        <Text style={styles.description}>
-          Bu alanda kullanıcılar belirli tarih ve saat aralıklarında rezervasyon
-          yapabilir. Sonraki aşamada burada saat seçimi ve uygunluk kontrolü
-          eklenecektir.
-        </Text>
-
-        <TouchableOpacity style={styles.reserveButton} onPress={handleReservation}>
+        <TouchableOpacity style={styles.reserveButton} onPress={() => setModalVisible(true)}>
           <Text style={styles.reserveButtonText}>Rezervasyon Yap</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Rezervasyon Formu</Text>
+
+            <View style={styles.formGroup}>
+              <TouchableOpacity style={styles.pickerButton} onPress={() => showMode('date')}>
+                <Text style={styles.pickerButtonText}>Tarih ve Saat Seç</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.selectedText}>
+                Başlangıç: {startTime.toLocaleString('tr-TR')}
+              </Text>
+              <Text style={styles.selectedText}>
+                Bitiş: {endTime.toLocaleString('tr-TR')} (1 Saat)
+              </Text>
+            </View>
+
+            {show && (
+              <DateTimePicker
+                testID="dateTimePicker"
+                value={date}
+                mode={mode}
+                is24Hour={true}
+                display="default"
+                onChange={onChange}
+                minimumDate={new Date()}
+              />
+            )}
+
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnConfirm]}
+                onPress={handleReservation}
+              >
+                <Text style={styles.btnText}>Rezervasyon Onayla</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.btn, styles.btnCancel]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.btnText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -176,24 +298,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 10,
   },
-  activitiesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 15,
-  },
-  activityBadge: {
-    backgroundColor: '#e0f2fe',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  activityText: {
-    color: '#0369a1',
-    fontSize: 13,
-    fontWeight: '600',
-  },
   description: {
     fontSize: 15,
     lineHeight: 24,
@@ -216,6 +320,74 @@ const styles = StyleSheet.create({
   reserveButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '90%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#124d57',
+    marginBottom: 15,
+  },
+  formGroup: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  pickerButton: {
+    backgroundColor: '#124d57',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  pickerButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  selectedText: {
+    fontSize: 14,
+    color: '#334155',
+    marginTop: 8,
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 20,
+  },
+  btn: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    width: '45%',
+    alignItems: 'center',
+  },
+  btnConfirm: {
+    backgroundColor: '#10b981',
+  },
+  btnCancel: {
+    backgroundColor: '#ef4444',
+  },
+  btnText: {
+    color: '#fff',
     fontWeight: 'bold',
   },
 });

@@ -14,85 +14,92 @@ import ParksScreen from './screens/ParksScreen.js';
 import ParkDetailScreen from './screens/ParkDetailScreen.js';
 import MapParksScreen from './screens/MapParksScreen.js';
 import ProfileScreen from './screens/ProfileScreen.js';
-
+import ReservationScreen from './screens/ReservationScreen.js';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <SafeAreaProvider>
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="MapParks"
-          component={MapParksScreen}
-          options={{ headerShown: false }}
-        />
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Login">
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MapParks"
+            component={MapParksScreen}
+            options={{ headerShown: false }}
+          />
 
-        <Stack.Screen
-          name="Register"
-          component={RegisterScreen}
-          options={{ headerShown: false }}
-        />
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{ headerShown: false }}
+          />
 
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPasswordScreen}
-          options={{ headerShown: false }}
-        />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ headerShown: false }}
+          />
 
-        <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ headerShown: false }}
-        />
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{ headerShown: false }}
+          />
 
-        <Stack.Screen
-          name="Cities"
-          component={CitiesScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
+          <Stack.Screen
+            name="Cities"
+            component={CitiesScreen}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        <Stack.Screen
-          name="Districts"
-          component={DistrictsScreen}
-          options={{
-            title: 'İlçe Seç',
-            headerTitleAlign: 'center',
-          }}
-        />
+          <Stack.Screen
+            name="Districts"
+            component={DistrictsScreen}
+            options={{
+              title: 'İlçe Seç',
+              headerTitleAlign: 'center',
+            }}
+          />
 
-        <Stack.Screen
-          name="Parks"
-          component={ParksScreen}
-          options={{
-            title: 'Parkları Keşfet',
-            headerTitleAlign: 'center',
-          }}
-        />
+          <Stack.Screen
+            name="Parks"
+            component={ParksScreen}
+            options={{
+              title: 'Parkları Keşfet',
+              headerTitleAlign: 'center',
+            }}
+          />
 
-        <Stack.Screen
-          name="ParkDetail"
-          component={ParkDetailScreen}
-          options={{
-            title: 'Park Detayı',
-            headerTitleAlign: 'center',
-          }}
-        />
+          <Stack.Screen
+            name="ParkDetail"
+            component={ParkDetailScreen}
+            options={{
+              title: 'Park Detayı',
+              headerTitleAlign: 'center',
+            }}
+          />
 
-        <Stack.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{ headerShown: false }}
+          />
+
+
+          <Stack.Screen
+            name="ReservationScreen"
+            component={ReservationScreen}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }

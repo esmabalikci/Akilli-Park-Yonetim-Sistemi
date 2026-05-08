@@ -13,9 +13,10 @@ import {
 
 const { width } = Dimensions.get('window');
 
+// 1. Route ismini 'ReservationScreen' olarak güncelledik
 const menuItems = [
   { id: '1', title: 'Parkları Keşfet', icon: '🌳', route: 'Cities' },
-  { id: '2', title: 'Rezervasyonlarım', icon: '📝', route: 'MyReservations' },
+  { id: '2', title: 'Rezervasyonlarım', icon: '📝', route: 'ReservationScreen' },
   { id: '3', title: 'Etkinlikler', icon: '🎉', route: 'Events' },
   { id: '4', title: 'Kayıp/Bulunan', icon: '🔍', route: 'LostFound' },
   { id: '5', title: 'Bildirimler', icon: '🔔', route: 'Notifications' },
@@ -25,11 +26,12 @@ const menuItems = [
 export default function HomeScreen({ route, navigation }) {
   const user = route?.params?.user;
 
-  let displayName = 'Esma';
+  let displayName = 'Furkan'; // Profil ismine göre güncellenebilir
   if (user?.full_name) {
     displayName = user.full_name.split(' ')[0];
   }
 
+  // 2. Yönlendirme mantığını güncelledik
   const handleMenuPress = (item) => {
     if (item.route === 'Cities') {
       navigation.navigate('Cities');
@@ -41,9 +43,15 @@ export default function HomeScreen({ route, navigation }) {
       return;
     }
 
+    // Rezervasyonlarım ekranına gitmesi için eklenen koşul
+    if (item.route === 'ReservationScreen') {
+      navigation.navigate('ReservationScreen');
+      return;
+    }
+
     Alert.alert(
       item.title,
-      `${item.title} ekranı henüz eklenmedi. Şimdilik sadece Parkları Keşfet aktif.`
+      `${item.title} ekranı henüz eklenmedi.`
     );
   };
 
@@ -100,10 +108,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
     elevation: 5,
     backgroundColor: '#fff',
   },
@@ -142,10 +146,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     elevation: 4,
   },
   cardIcon: {
