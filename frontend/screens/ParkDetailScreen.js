@@ -13,14 +13,8 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getApiBaseUrl } from '../config/api';
 
-// İsteğe bağlı: Kullanıcı bilgilerini tuttuğunuz bir Auth Context veya Global State import edebilirsiniz.
-// Örneğin: import { useAuth } from '../context/AuthContext';
-
 export default function ParkDetailScreen({ route, navigation }) {
   const { park } = route.params;
-
-  // Eğer Context API kullanıyorsanız:
-  // const { user } = useAuth();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [date, setDate] = useState(new Date());
@@ -28,7 +22,9 @@ export default function ParkDetailScreen({ route, navigation }) {
   const [show, setShow] = useState(false);
 
   const [startTime, setStartTime] = useState(new Date());
-  const [endTime, setEndTime] = useState(new Date(new Date().getTime() + 60 * 60 * 1000)); // Varsayılan 1 saat
+  const [endTime, setEndTime] = useState(
+    new Date(new Date().getTime() + 60 * 60 * 1000)
+  );
 
   const onChange = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -55,22 +51,16 @@ export default function ParkDetailScreen({ route, navigation }) {
   const handleReservation = async () => {
     try {
       const baseUrl = getApiBaseUrl();
-      console.log('Bağlanılan Adres:', `${baseUrl}/api/reservations`);
-
-      // Kullanıcının oturum bilgilerine göre UserId alanını şekillendiriyoruz.
-      // Eğer kullanıcı ID'niz bir global state veya context'te tutuluyorsa user.id olarak güncelleyebilirsiniz.
-      const currentUserId = 1; // user?.id || 1; 
 
       const requestBody = {
-        UserId: currentUserId,
+        UserId: 1,
         PicnicAreaId: park.id || park.Id || 1,
+        ParkName: park.name || 'Park adı yok',
         StartTime: startTime.toISOString(),
         EndTime: endTime.toISOString(),
         Status: 'Aktif',
         CreatedAt: new Date().toISOString(),
       };
-
-      console.log('Gönderilen JSON Verisi:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(`${baseUrl}/api/reservations`, {
         method: 'POST',
@@ -81,18 +71,20 @@ export default function ParkDetailScreen({ route, navigation }) {
       });
 
       const responseText = await response.text();
-      console.log('Sunucu Yanıt Kodu:', response.status);
-      console.log('Sunucu Yanıt Metni:', responseText);
 
       if (response.ok) {
         setModalVisible(false);
+
         Alert.alert(
           'Başarılı',
           'Rezervasyonunuz veritabanına kaydedildi.',
           [
             {
               text: 'Tamam',
-              onPress: () => navigation.navigate('ReservationScreen', { park }),
+              onPress: () =>
+                navigation.navigate('ReservationScreen', {
+                  reservation: requestBody,
+                }),
             },
           ]
         );
@@ -112,6 +104,7 @@ export default function ParkDetailScreen({ route, navigation }) {
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{park.name}</Text>
+
           <View
             style={[
               styles.statusBadge,
@@ -129,24 +122,35 @@ export default function ParkDetailScreen({ route, navigation }) {
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Uzaklık</Text>
-            <Text style={styles.infoValue}>{park.distance ? `${park.distance} km` : 'Bilinmiyor'}</Text>
+            <Text style={styles.infoValue}>
+              {park.distance ? `${park.distance} km` : 'Bilinmiyor'}
+            </Text>
           </View>
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Boyut</Text>
             <Text style={styles.infoValue}>
-              {typeof park.size_sqm === 'number' ? `${park.size_sqm} m²` : 'Bilinmiyor'}
+              {typeof park.size_sqm === 'number'
+                ? `${park.size_sqm} m²`
+                : 'Bilinmiyor'}
             </Text>
           </View>
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Kapasite</Text>
             <Text style={styles.infoValue}>
-              {typeof park.capacity === 'number' ? `${park.capacity} Kişi` : 'Bilinmiyor'}
+              {typeof park.capacity === 'number'
+                ? `${park.capacity} Kişi`
+                : 'Bilinmiyor'}
             </Text>
           </View>
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Doluluk</Text>
             <Text style={styles.infoValue}>
-              {typeof park.occupancyRate === 'number' ? `%${park.occupancyRate}` : 'Bilinmiyor'}
+              {typeof park.occupancyRate === 'number'
+                ? `%${park.occupancyRate}`
+                : 'Bilinmiyor'}
             </Text>
           </View>
         </View>
@@ -154,7 +158,10 @@ export default function ParkDetailScreen({ route, navigation }) {
         <Text style={styles.sectionTitle}>Açıklama</Text>
         <Text style={styles.description}>{park.description}</Text>
 
-        <TouchableOpacity style={styles.reserveButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity
+          style={styles.reserveButton}
+          onPress={() => setModalVisible(true)}
+        >
           <Text style={styles.reserveButtonText}>Rezervasyon Yap</Text>
         </TouchableOpacity>
       </View>
@@ -170,13 +177,17 @@ export default function ParkDetailScreen({ route, navigation }) {
             <Text style={styles.modalTitle}>Rezervasyon Formu</Text>
 
             <View style={styles.formGroup}>
-              <TouchableOpacity style={styles.pickerButton} onPress={() => showMode('date')}>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => showMode('date')}
+              >
                 <Text style={styles.pickerButtonText}>Tarih ve Saat Seç</Text>
               </TouchableOpacity>
 
               <Text style={styles.selectedText}>
                 Başlangıç: {startTime.toLocaleString('tr-TR')}
               </Text>
+
               <Text style={styles.selectedText}>
                 Bitiş: {endTime.toLocaleString('tr-TR')} (1 Saat)
               </Text>
@@ -311,11 +322,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 40,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   reserveButtonText: {
     color: '#fff',
@@ -334,11 +340,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 35,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
     width: '90%',
   },
   modalTitle: {
