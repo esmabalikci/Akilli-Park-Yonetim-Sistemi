@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import React from 'react';
+import LostFoundScreen from './screens/LostFoundScreen.js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -58,6 +59,12 @@ export default function App() {
               headerShown: false,
             }}
           />
+
+<Stack.Screen
+  name="LostFound"
+  component={LostFoundScreen}
+  options={{ headerShown: false }}
+/>
 
           <Stack.Screen
             name="Districts"

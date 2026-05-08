@@ -13,7 +13,6 @@ import {
 
 const { width } = Dimensions.get('window');
 
-// 1. Route ismini 'ReservationScreen' olarak güncelledik
 const menuItems = [
   { id: '1', title: 'Parkları Keşfet', icon: '🌳', route: 'Cities' },
   { id: '2', title: 'Rezervasyonlarım', icon: '📝', route: 'ReservationScreen' },
@@ -26,15 +25,25 @@ const menuItems = [
 export default function HomeScreen({ route, navigation }) {
   const user = route?.params?.user;
 
-  let displayName = 'Furkan'; // Profil ismine göre güncellenebilir
+  let displayName = 'Furkan';
+
   if (user?.full_name) {
     displayName = user.full_name.split(' ')[0];
   }
 
-  // 2. Yönlendirme mantığını güncelledik
   const handleMenuPress = (item) => {
     if (item.route === 'Cities') {
       navigation.navigate('Cities');
+      return;
+    }
+
+    if (item.route === 'ReservationScreen') {
+      navigation.navigate('ReservationScreen');
+      return;
+    }
+
+    if (item.route === 'LostFound') {
+      navigation.navigate('LostFound');
       return;
     }
 
@@ -43,16 +52,7 @@ export default function HomeScreen({ route, navigation }) {
       return;
     }
 
-    // Rezervasyonlarım ekranına gitmesi için eklenen koşul
-    if (item.route === 'ReservationScreen') {
-      navigation.navigate('ReservationScreen');
-      return;
-    }
-
-    Alert.alert(
-      item.title,
-      `${item.title} ekranı henüz eklenmedi.`
-    );
+    Alert.alert(item.title, `${item.title} ekranı henüz eklenmedi.`);
   };
 
   return (
