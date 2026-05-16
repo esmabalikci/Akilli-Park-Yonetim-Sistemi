@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "tr",
+        "CFBundleLocalizations": ["tr"]
+      }
     },
     "android": {
       "usesCleartextTraffic": true,
@@ -32,6 +36,9 @@
     },
     "plugins": [
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "locales": {
+      "tr": "./locales/tr.json"
+    }
   }
 }

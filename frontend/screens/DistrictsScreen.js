@@ -8,26 +8,42 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { districtsData } from '../data/districtsData';
+import TurkishTextInput from '../components/TurkishTextInput';
+import { useTheme } from '../context/ThemeContext';
 
 export default function DistrictsScreen({ route, navigation }) {
   const { city } = route.params;
+  const { isDark } = useTheme();
   const [searchText, setSearchText] = useState('');
 
   const districts = districtsData[city] || [];
 
   const filteredDistricts = useMemo(() => {
+    const q = searchText.trim().toLocaleLowerCase('tr-TR');
+    if (!q) return districts;
     return districts.filter((district) =>
-      district.toLowerCase().includes(searchText.toLowerCase())
+      district.toLocaleLowerCase('tr-TR').includes(q)
     );
   }, [districts, searchText]);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{city} / İlçe Seçin</Text>
+  // Tema renkleri
+  const bg = isDark ? '#0f172a' : '#dff1f4';
+  const textPrimary = isDark ? '#10b981' : '#0f5c69';
+  const searchBg = isDark ? '#1e293b' : '#fff';
+  const searchBorder = isDark ? '#334155' : 'transparent';
+  const searchInputText = isDark ? '#f8fafc' : '#333';
+  const cardBg = isDark ? '#1e293b' : '#fff';
+  const itemText = isDark ? '#e2e8f0' : '#124d57';
 
-      <TextInput
-        style={styles.searchInput}
+  return (
+    <View style={[styles.container, { backgroundColor: bg }]}>
+      <Text style={[styles.title, { color: textPrimary }]}>{city} / İlçe Seçin</Text>
+
+      <TurkishTextInput
+        variant="search"
+        style={[styles.searchInput, { backgroundColor: searchBg, borderColor: searchBorder, borderWidth: isDark ? 1 : 0, color: searchInputText }]}
         placeholder="İlçe ara..."
+        placeholderTextColor={isDark ? '#64748b' : '#999'}
         value={searchText}
         onChangeText={setSearchText}
       />
@@ -37,10 +53,10 @@ export default function DistrictsScreen({ route, navigation }) {
         keyExtractor={(item) => item}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={styles.itemCard}
+            style={[styles.itemCard, { backgroundColor: cardBg, borderColor: searchBorder, borderWidth: isDark ? 1 : 0 }]}
             onPress={() => navigation.navigate('MapParks', { city, district: item })}          >
-            <Text style={styles.itemText}>{item}</Text>
-            <Text style={styles.arrow}>›</Text>
+            <Text style={[styles.itemText, { color: itemText }]}>{item}</Text>
+            <Text style={[styles.arrow, { color: isDark ? '#475569' : '#124d57' }]}>›</Text>
           </TouchableOpacity>
         )}
         showsVerticalScrollIndicator={false}

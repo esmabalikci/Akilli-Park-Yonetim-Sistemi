@@ -8,8 +8,10 @@ import {
   Image,
   Dimensions,
   ScrollView,
-  Alert,
 } from 'react-native';
+import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import { theme } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -23,73 +25,58 @@ const menuItems = [
 ];
 
 export default function HomeScreen({ route, navigation }) {
-  const user = route?.params?.user;
+  const { user: contextUser } = useUser();
+  const { isDark } = useTheme();
+  const user = route?.params?.user || contextUser;
 
-  let displayName = 'Furkan';
+  // Tema Renkleri
+  const bg = isDark ? '#0f172a' : theme.background;
+  const cardBg = isDark ? '#1e293b' : theme.card;
+  const textColor = isDark ? '#10b981' : theme.title;
+  const subTextColor = isDark ? '#94a3b8' : theme.subtitle;
+  const borderColor = isDark ? '#334155' : theme.border;
 
+  let displayName = 'Misafir';
   if (user?.full_name) {
     displayName = user.full_name.split(' ')[0];
   }
 
   const handleMenuPress = (item) => {
-    if (item.route === 'Cities') {
-      navigation.navigate('Cities');
-      return;
-    }
-
-    if (item.route === 'ReservationScreen') {
-      navigation.navigate('ReservationScreen');
-      return;
-    }
-
-    if (item.route === 'Events') {
-      navigation.navigate('Events');
-      return;
-    }
-
-    if (item.route === 'LostFound') {
-      navigation.navigate('LostFound');
-      return;
-    }
-
     if (item.route === 'Profile') {
       navigation.navigate('Profile', { user });
       return;
     }
-
-    Alert.alert(item.title, `${item.title} ekranı henüz eklenmedi.`);
+    navigation.navigate(item.route);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.headerImageContainer}>
           <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1519331379826-f10be5486c6f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-            }}
+            source={require('../assets/login-park.png')}
             style={styles.headerImage}
           />
         </View>
 
         <View style={styles.welcomeContainer}>
-          <Text style={styles.title}>Hoş geldin {displayName}!</Text>
-          <Text style={styles.subtitle}>Park Yönetim Uygulaması</Text>
+          <Text style={[styles.title, { color: textColor }]}>Hoş geldin {displayName}!</Text>
+          <Text style={[styles.subtitle, { color: subTextColor }]}>Akıllı Piknik Alanı Yönetim Sistemi</Text>
         </View>
 
         <View style={styles.gridContainer}>
           {menuItems.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.card}
+              style={[styles.card, { backgroundColor: cardBg, borderColor: borderColor }]}
               onPress={() => handleMenuPress(item)}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={styles.cardIcon}>{item.icon}</Text>
-              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={[styles.cardTitle, { color: textColor }]}>{item.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -101,7 +88,7 @@ export default function HomeScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#e6f7f5',
+    backgroundColor: theme.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -109,12 +96,11 @@ const styles = StyleSheet.create({
   },
   headerImageContainer: {
     width: '100%',
-    height: 220,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    height: 200,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
-    elevation: 5,
-    backgroundColor: '#fff',
+    backgroundColor: theme.card,
   },
   headerImage: {
     width: '100%',
@@ -123,19 +109,21 @@ const styles = StyleSheet.create({
   },
   welcomeContainer: {
     alignItems: 'center',
-    marginTop: 25,
-    marginBottom: 20,
+    marginTop: 22,
+    marginBottom: 18,
+    paddingHorizontal: 20,
   },
   title: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#0d7d71',
+    color: theme.title,
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#2b9c8f',
+    fontSize: 14,
+    color: theme.subtitle,
     fontWeight: '500',
+    textAlign: 'center',
   },
   gridContainer: {
     flexDirection: 'row',
@@ -144,23 +132,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   card: {
-    backgroundColor: '#ffffff',
-    width: (width - 60) / 2,
-    height: 120,
-    borderRadius: 16,
+    backgroundColor: theme.card,
+    width: (width - 56) / 2,
+    height: 118,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    elevation: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    shadowColor: theme.primaryDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   cardIcon: {
-    fontSize: 40,
-    marginBottom: 10,
+    fontSize: 36,
+    marginBottom: 8,
   },
   cardTitle: {
     fontSize: 13,
-    fontWeight: 'bold',
-    color: '#135c5c',
+    fontWeight: '700',
+    color: theme.title,
     textAlign: 'center',
+    paddingHorizontal: 6,
   },
 });

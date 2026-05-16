@@ -68,4 +68,48 @@ router.put('/lost-found/:id/status', (req, res) => {
     });
 });
 
+router.put('/lost-found/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const { Type, ItemName, Description, ParkName, ContactInfo } = req.body;
+
+    const item = lostFoundItems.find((x) => x.Id === id);
+
+    if (!item) {
+        return res.status(404).json({
+            success: false,
+            message: 'İlan bulunamadı.',
+        });
+    }
+
+    if (Type) item.Type = Type;
+    if (ItemName) item.ItemName = ItemName;
+    if (Description) item.Description = Description;
+    if (ParkName) item.ParkName = ParkName;
+    if (ContactInfo) item.ContactInfo = ContactInfo;
+
+    res.status(200).json({
+        success: true,
+        message: 'İlan başarıyla güncellendi.',
+        item,
+    });
+});
+
+router.delete('/lost-found/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const initialLength = lostFoundItems.length;
+    lostFoundItems = lostFoundItems.filter((x) => x.Id !== id);
+
+    if (lostFoundItems.length === initialLength) {
+        return res.status(404).json({
+            success: false,
+            message: 'İlan bulunamadı.',
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'İlan başarıyla silindi.',
+    });
+});
+
 module.exports = router;

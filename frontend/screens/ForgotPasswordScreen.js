@@ -12,6 +12,8 @@ import {
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getApiBaseUrl } from '../config/api';
+import TurkishTextInput from '../components/TurkishTextInput';
 
 export default function ForgotPasswordScreen({ navigation }) {
     const [email, setEmail] = useState('');
@@ -36,7 +38,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         setLoading(true);
 
         try {
-            const response = await fetch('http://10.0.2.2:3000/api/auth/forgot-password', {
+            const response = await fetch(`${getApiBaseUrl()}/api/auth/forgot-password`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -87,14 +89,12 @@ export default function ForgotPasswordScreen({ navigation }) {
                     </Text>
 
                     <View style={styles.inputContainer}>
-                        <TextInput
+                        <TurkishTextInput
+                            variant="email"
                             style={styles.input}
-                            placeholder="Email"
+                            placeholder="E-posta"
                             value={email}
                             onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
                         />
                     </View>
 

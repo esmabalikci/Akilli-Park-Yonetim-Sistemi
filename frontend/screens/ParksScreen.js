@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { getDummyParks } from '../data/dummyParks.js';
+import TurkishTextInput from '../components/TurkishTextInput';
 
 // Haversine formülü ile iki koordinat arası mesafe (km)
 const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -77,9 +78,9 @@ export default function ParksScreen({ navigation, route }) {
   }, [city, district]);
 
   useEffect(() => {
-    const text = searchText.toLowerCase();
+    const text = searchText.trim().toLocaleLowerCase('tr-TR');
     const filtered = parks.filter((park) =>
-      park.name.toLowerCase().includes(text)
+      park.name.toLocaleLowerCase('tr-TR').includes(text)
     );
     setFilteredParks(filtered);
   }, [searchText, parks]);
@@ -193,7 +194,8 @@ export default function ParksScreen({ navigation, route }) {
         Toplam {parks.length} park • {parks.reduce((a, p) => a + p.emptySlots, 0)} boş yer
       </Text>
 
-      <TextInput
+      <TurkishTextInput
+        variant="search"
         style={styles.searchInput}
         placeholder="Park adına göre ara..."
         placeholderTextColor="#999"

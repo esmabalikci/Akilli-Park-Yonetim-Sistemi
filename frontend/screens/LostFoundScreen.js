@@ -5,27 +5,33 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    TextInput,
     Modal,
     Alert,
     SafeAreaView,
     ActivityIndicator,
     ScrollView,
+    Linking,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getApiBaseUrl } from '../config/api';
+import TurkishTextInput from '../components/TurkishTextInput';
+import { useUser } from '../context/UserContext';
 
 export default function LostFoundScreen() {
+    const { user } = useUser();
     const [items, setItems] = useState([]);
     const [filteredType, setFilteredType] = useState('Tümü');
     const [searchText, setSearchText] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    // Form state
     const [type, setType] = useState('Kayıp');
     const [itemName, setItemName] = useState('');
     const [description, setDescription] = useState('');
     const [parkName, setParkName] = useState('');
     const [contactInfo, setContactInfo] = useState('');
+    const [editingItemId, setEditingItemId] = useState(null);
 
     const fetchItems = async () => {
         try {
@@ -56,9 +62,10 @@ export default function LostFoundScreen() {
         setDescription('');
         setParkName('');
         setContactInfo('');
+        setEditingItemId(null);
     };
 
-    const handleAddItem = async () => {
+    const handleSubmit = async () => {
         if (!itemName.trim() || !description.trim() || !parkName.trim()) {
             Alert.alert('Hata', 'Lütfen eşya adı, açıklama ve park adı alanlarını doldurun.');
             return;
@@ -66,9 +73,8 @@ export default function LostFoundScreen() {
 
         try {
             const baseUrl = getApiBaseUrl();
-
             const requestBody = {
-                UserId: 1,
+                UserId: user?.id || 1,
                 Type: type,
                 ItemName: itemName,
                 Description: description,
@@ -77,8 +83,14 @@ export default function LostFoundScreen() {
                 Status: 'Açık',
             };
 
-            const response = await fetch(`${baseUrl}/api/lost-found`, {
-                method: 'POST',
+            const url = editingItemId 
+                ? `${baseUrl}/api/lost-found/${editingItemId}`
+                : `${baseUrl}/api/lost-found`;
+            
+            const method = editingItemId ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -88,29 +100,96 @@ export default function LostFoundScreen() {
             const data = await response.json();
 
             if (response.ok && data.success) {
-                Alert.alert('Başarılı', 'İlan başarıyla oluşturuldu.');
+                Alert.alert('Başarılı', editingItemId ? 'İlan güncellendi.' : 'İlan oluşturuldu.');
                 setModalVisible(false);
                 resetForm();
                 fetchItems();
             } else {
-                Alert.alert('Hata', data.message || 'İlan oluşturulamadı.');
+                Alert.alert('Hata', data.message || 'İşlem başarısız.');
             }
         } catch (error) {
-            console.error('İlan ekleme hatası:', error);
+            console.error('İlan kaydetme hatası:', error);
             Alert.alert('Hata', 'Sunucuya bağlanılamadı.');
         }
     };
 
-    const handleContact = (item) => {
+    const handleDelete = (id) => {
         Alert.alert(
-            'İletişim Bilgisi',
-            `${item.ItemName} ilanı için iletişim:\n\n${item.ContactInfo || 'İletişim bilgisi yok'}`
+            'İlanı Sil',
+            'Bu ilanı silmek istediğinize emin misiniz?',
+            [
+                { text: 'İptal', style: 'cancel' },
+                {
+                    text: 'Sil',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const baseUrl = getApiBaseUrl();
+                            const response = await fetch(`${baseUrl}/api/lost-found/${id}`, {
+                                method: 'DELETE'
+                            });
+                            const data = await response.json();
+                            if (response.ok && data.success) {
+                                Alert.alert('Silindi', 'İlan başarıyla silindi.');
+                                fetchItems();
+                            } else {
+                                Alert.alert('Hata', data.message || 'Silinemedi.');
+                            }
+                        } catch (error) {
+                            console.error('Silme hatası:', error);
+                            Alert.alert('Hata', 'Sunucuya bağlanılamadı.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEdit = (item) => {
+        setType(item.Type);
+        setItemName(item.ItemName);
+        setDescription(item.Description);
+        setParkName(item.ParkName);
+        setContactInfo(item.ContactInfo || '');
+        setEditingItemId(item.Id);
+        setModalVisible(true);
+    };
+
+    const handleContact = (item) => {
+        const contactInfo = item.ContactInfo || '';
+        // Sadece rakamları alarak geçerli bir telefon numarası olup olmadığını kontrol et
+        const cleanNumber = contactInfo.replace(/\D/g, '');
+        const hasNumber = cleanNumber.length >= 10;
+
+        const title = item.Type === 'Bulunan' ? 'Bulan Kişiyle İletişime Geçin' : 'Eşya Sahibiyle İletişime Geçin';
+        const message = item.Type === 'Bulunan'
+            ? `Eşyanızı teslim almak için bu ilanı oluşturan kişiyle hemen iletişime geçebilirsiniz:\n\n📞 ${contactInfo || 'İletişim bilgisi eklenmemiş'}`
+            : `Bu eşyayı bulduysanız veya haber vermek istiyorsanız eşya sahibiyle iletişime geçebilirsiniz:\n\n📞 ${contactInfo || 'İletişim bilgisi eklenmemiş'}`;
+
+        if (!hasNumber) {
+            Alert.alert(title, message);
+            return;
+        }
+
+        Alert.alert(
+            title,
+            message,
+            [
+                { text: 'İptal', style: 'cancel' },
+                {
+                    text: 'Telefonla Ara',
+                    onPress: () => Linking.openURL(`tel:${cleanNumber}`).catch(err => Alert.alert('Hata', 'Arama başlatılamadı.'))
+                },
+                {
+                    text: 'SMS Gönder',
+                    onPress: () => Linking.openURL(`sms:${cleanNumber}`).catch(err => Alert.alert('Hata', 'Mesaj uygulaması açılamadı.'))
+                }
+            ]
         );
     };
 
     const filteredItems = items.filter((item) => {
         const typeMatch = filteredType === 'Tümü' || item.Type === filteredType;
-
         const searchMatch =
             item.ItemName?.toLowerCase().includes(searchText.toLowerCase()) ||
             item.ParkName?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -119,40 +198,58 @@ export default function LostFoundScreen() {
         return typeMatch && searchMatch;
     });
 
-    const renderItem = ({ item }) => (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View>
-                    <Text style={styles.itemTitle}>{item.ItemName}</Text>
-                    <Text
-                        style={[
-                            styles.typeText,
-                            item.Type === 'Kayıp' ? styles.lostText : styles.foundText,
-                        ]}
-                    >
-                        {item.Type}
-                    </Text>
+    const renderItem = ({ item }) => {
+        const isOwner = user && String(item.UserId) === String(user.id);
+
+        return (
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <View>
+                        <Text style={styles.itemTitle}>{item.ItemName}</Text>
+                        <Text
+                            style={[
+                                styles.typeText,
+                                item.Type === 'Kayıp' ? styles.lostText : styles.foundText,
+                            ]}
+                        >
+                            {item.Type}
+                        </Text>
+                    </View>
+
+                    <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>{item.Status}</Text>
+                    </View>
                 </View>
 
-                <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{item.Status}</Text>
+                <Text style={styles.description}>{item.Description}</Text>
+                <Text style={styles.infoText}>📍 Park: {item.ParkName}</Text>
+                <Text style={styles.infoText}>
+                    📅 Tarih: {new Date(item.CreatedAt).toLocaleDateString('tr-TR')}
+                </Text>
+
+                <View style={styles.actionRow}>
+                    {!isOwner ? (
+                        <TouchableOpacity style={[styles.contactButton, { flex: 1 }]} onPress={() => handleContact(item)}>
+                            <Text style={styles.contactButtonText}>
+                                {item.Type === 'Kayıp' ? 'Bilgi Ver' : 'Bu Eşya Benim'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <>
+                            <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(item)}>
+                                <Ionicons name="pencil" size={18} color="#fff" />
+                                <Text style={styles.editButtonText}>Düzenle</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.Id)}>
+                                <Ionicons name="trash" size={18} color="#fff" />
+                                <Text style={styles.deleteButtonText}>Sil</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
             </View>
-
-            <Text style={styles.description}>{item.Description}</Text>
-
-            <Text style={styles.infoText}>📍 Park: {item.ParkName}</Text>
-            <Text style={styles.infoText}>
-                📅 Tarih: {new Date(item.CreatedAt).toLocaleDateString('tr-TR')}
-            </Text>
-
-            <TouchableOpacity style={styles.contactButton} onPress={() => handleContact(item)}>
-                <Text style={styles.contactButtonText}>
-                    {item.Type === 'Kayıp' ? 'Bilgi Ver' : 'Bu Eşya Benim'}
-                </Text>
-            </TouchableOpacity>
-        </View>
-    );
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -180,7 +277,8 @@ export default function LostFoundScreen() {
                 ))}
             </View>
 
-            <TextInput
+            <TurkishTextInput
+                variant="search"
                 style={styles.searchInput}
                 placeholder="Eşya veya park ara..."
                 value={searchText}
@@ -210,12 +308,17 @@ export default function LostFoundScreen() {
                 visible={modalVisible}
                 animationType="slide"
                 transparent={true}
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={() => {
+                    setModalVisible(false);
+                    resetForm();
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <ScrollView>
-                            <Text style={styles.modalTitle}>Yeni İlan Oluştur</Text>
+                            <Text style={styles.modalTitle}>
+                                {editingItemId ? 'İlanı Düzenle' : 'Yeni İlan Oluştur'}
+                            </Text>
 
                             <Text style={styles.label}>İlan Türü</Text>
                             <View style={styles.typeRow}>
@@ -255,7 +358,8 @@ export default function LostFoundScreen() {
                             </View>
 
                             <Text style={styles.label}>Eşya Adı</Text>
-                            <TextInput
+                            <TurkishTextInput
+                                variant="text"
                                 style={styles.input}
                                 placeholder="Örn: Cüzdan, anahtar, telefon"
                                 value={itemName}
@@ -263,7 +367,8 @@ export default function LostFoundScreen() {
                             />
 
                             <Text style={styles.label}>Park Adı</Text>
-                            <TextInput
+                            <TurkishTextInput
+                                variant="text"
                                 style={styles.input}
                                 placeholder="Örn: Gümüşhane Belediye Parkı"
                                 value={parkName}
@@ -271,7 +376,8 @@ export default function LostFoundScreen() {
                             />
 
                             <Text style={styles.label}>Açıklama</Text>
-                            <TextInput
+                            <TurkishTextInput
+                                variant="multiline"
                                 style={[styles.input, styles.textArea]}
                                 placeholder="Nerede kayboldu/bulundu? Detay yazın."
                                 value={description}
@@ -280,7 +386,8 @@ export default function LostFoundScreen() {
                             />
 
                             <Text style={styles.label}>İletişim Bilgisi</Text>
-                            <TextInput
+                            <TurkishTextInput
+                                variant="text"
                                 style={styles.input}
                                 placeholder="Telefon veya kısa iletişim bilgisi"
                                 value={contactInfo}
@@ -290,7 +397,7 @@ export default function LostFoundScreen() {
                             <View style={styles.modalButtonRow}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.saveButton]}
-                                    onPress={handleAddItem}
+                                    onPress={handleSubmit}
                                 >
                                     <Text style={styles.modalButtonText}>Kaydet</Text>
                                 </TouchableOpacity>
@@ -396,6 +503,7 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         borderRadius: 10,
         height: 30,
+        justifyContent: 'center',
     },
     statusText: {
         color: '#124d57',
@@ -412,16 +520,48 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginVertical: 2,
     },
+    actionRow: {
+        flexDirection: 'row',
+        marginTop: 14,
+        gap: 10,
+    },
     contactButton: {
         backgroundColor: '#124d57',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
-        marginTop: 14,
     },
     contactButtonText: {
         color: '#fff',
         fontWeight: 'bold',
+    },
+    editButton: {
+        flex: 1,
+        backgroundColor: '#f59e0b',
+        paddingVertical: 12,
+        borderRadius: 12,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    editButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        marginLeft: 6,
+    },
+    deleteButton: {
+        flex: 1,
+        backgroundColor: '#ef4444',
+        paddingVertical: 12,
+        borderRadius: 12,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deleteButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        marginLeft: 6,
     },
     emptyContainer: {
         flex: 1,

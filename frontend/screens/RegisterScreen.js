@@ -12,14 +12,26 @@ import {
     Platform,
     ScrollView
 } from 'react-native';
+import { getApiBaseUrl } from '../config/api';
+import TurkishTextInput from '../components/TurkishTextInput';
+import { useTheme } from '../context/ThemeContext';
 
 export default function RegisterScreen({ navigation }) {
+    const { isDark } = useTheme();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Tema Renkleri
+    const bg = isDark ? '#0f172a' : '#e6f7f5';
+    const textColor = isDark ? '#10b981' : '#135c5c';
+    const inputBg = isDark ? '#1e293b' : '#fff';
+    const inputBorder = isDark ? '#334155' : '#b2dfdb';
+    const textInputColor = isDark ? '#e2e8f0' : '#333';
+    const linkColor = isDark ? '#34d399' : '#00897b';
 
     const validateEmail = (text) => {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,12 +54,14 @@ export default function RegisterScreen({ navigation }) {
             return;
         }
 
+
+
         setLoading(true);
 
         const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
         try {
-            const response = await fetch('http://10.0.2.2:3000/api/auth/register', {
+            const response = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -76,59 +90,57 @@ export default function RegisterScreen({ navigation }) {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
             <KeyboardAvoidingView
                 style={styles.keyboardContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     
-                    <Text style={styles.title}>Kayıt Ol</Text>
+                    <Text style={[styles.title, { color: textColor }]}>Kayıt Ol</Text>
 
                     <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
+                        <TurkishTextInput
+                            variant="name"
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textInputColor }]}
                             placeholder="Ad"
                             placeholderTextColor="#888"
                             value={firstName}
                             onChangeText={setFirstName}
-                            autoCorrect={false}
                         />
-                        <TextInput
-                            style={styles.input}
+                        <TurkishTextInput
+                            variant="name"
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textInputColor }]}
                             placeholder="Soyad"
                             placeholderTextColor="#888"
                             value={lastName}
                             onChangeText={setLastName}
-                            autoCorrect={false}
                         />
-                        <TextInput
-                            style={styles.input}
+                        <TurkishTextInput
+                            variant="text"
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textInputColor }]}
                             placeholder="Kullanıcı Adı"
                             placeholderTextColor="#888"
                             value={username}
                             onChangeText={setUsername}
                             autoCapitalize="none"
-                            autoCorrect={false}
                         />
-                        <TextInput
-                            style={styles.input}
+                        <TurkishTextInput
+                            variant="email"
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textInputColor }]}
                             placeholder="E-posta"
                             placeholderTextColor="#888"
                             value={email}
                             onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
                         />
-                        <TextInput
-                            style={styles.input}
+                        <TurkishTextInput
+                            variant="password"
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textInputColor }]}
                             placeholder="Şifre"
                             placeholderTextColor="#888"
                             value={password}
                             onChangeText={setPassword}
-                            secureTextEntry={true}
-                            autoCapitalize="none"
+                            secureTextEntry
                         />
                     </View>
 
@@ -144,7 +156,7 @@ export default function RegisterScreen({ navigation }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.loginLinkContainer} onPress={() => navigation.navigate('Login')}>
-                        <Text style={styles.loginLinkText}>Zaten hesabın var mı? Giriş yap</Text>
+                        <Text style={[styles.loginLinkText, { color: linkColor }]}>Zaten hesabın var mı? Giriş yap</Text>
                     </TouchableOpacity>
 
                 </ScrollView>

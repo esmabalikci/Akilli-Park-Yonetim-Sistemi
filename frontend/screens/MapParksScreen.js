@@ -16,6 +16,8 @@ import * as Location from 'expo-location';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { getDummyParks } from '../data/dummyParks.js';
+import ExploreBottomNav from '../components/ExploreBottomNav';
+import { useTheme } from '../context/ThemeContext';
 
 /* ───────── RENK PALETİ ───────── */
 const GREEN = '#1B4332';
@@ -221,6 +223,18 @@ export default function MapParksScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+
+  const { isDark } = useTheme();
+
+  // Tema Renkleri
+  const bg = isDark ? '#0f172a' : BG;
+  const cardBg = isDark ? '#1e293b' : CARD_BG;
+  const textPrimary = isDark ? '#10b981' : GREEN;
+  const textSecondary = isDark ? '#f1f5f9' : '#1a2f25';
+  const textMuted = isDark ? '#94a3b8' : '#374151';
+  const borderColor = isDark ? '#334155' : 'transparent';
+  const iconColor = isDark ? '#10b981' : GREEN;
+  const cardShadow = isDark ? { elevation: 2, shadowOpacity: 0.2 } : {};
 
   // Alt kart animasyonu
   const cardAnim = useRef(new Animated.Value(0)).current;
@@ -430,9 +444,9 @@ export default function MapParksScreen({ route, navigation }) {
   /* ── Boş / Hata durumları ─── */
   if (!city || !district) {
     return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="warning-outline" size={48} color={GREEN} />
-        <Text style={styles.infoText}>İl veya ilçe bilgisi eksik.</Text>
+      <View style={[styles.centerContainer, { backgroundColor: bg }]}>
+        <Ionicons name="warning-outline" size={48} color={iconColor} />
+        <Text style={[styles.infoText, { color: textPrimary }]}>İl veya ilçe bilgisi eksik.</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.retryBtnText}>Geri Dön</Text>
         </TouchableOpacity>
@@ -442,25 +456,25 @@ export default function MapParksScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={GREEN} />
-        <Text style={styles.infoText}>Harita ve parklar yükleniyor…</Text>
-        <Text style={styles.infoSubText}>{district}, {city} aranıyor</Text>
+      <View style={[styles.centerContainer, { backgroundColor: bg }]}>
+        <ActivityIndicator size="large" color={iconColor} />
+        <Text style={[styles.infoText, { color: textPrimary }]}>Harita ve parklar yükleniyor…</Text>
+        <Text style={[styles.infoSubText, { color: textMuted }]}>{district}, {city} aranıyor</Text>
       </View>
     );
   }
 
   /* ═══════════ RENDER ═══════════ */
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top']}>
       {/* ── Üst Bar ── */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: bg }]}>
         <TouchableOpacity onPress={() => navigation.navigate('Home')} hitSlop={12}>
-          <Ionicons name="person-circle-outline" size={28} color={GREEN} />
+          <Ionicons name="person-circle-outline" size={28} color={iconColor} />
         </TouchableOpacity>
-        <Text style={styles.brand}>APAYS</Text>
+        <Text style={[styles.brand, { color: iconColor }]}>APAYS</Text>
         <TouchableOpacity onPress={() => Alert.alert('Arama', 'Park araması yakında.')} hitSlop={12}>
-          <Ionicons name="search-outline" size={24} color={GREEN} />
+          <Ionicons name="search-outline" size={24} color={iconColor} />
         </TouchableOpacity>
       </View>
 
@@ -535,22 +549,22 @@ export default function MapParksScreen({ route, navigation }) {
 
         {/* ── Konum + Filtre Kartı ── */}
         <View style={[styles.overlayCol, { top: Math.max(insets.top, 8) + 52 }]}>
-          <View style={styles.locationCard}>
-            <View style={styles.locationIconWrap}>
-              <Ionicons name="locate" size={18} color={GREEN} />
+          <View style={[styles.locationCard, { backgroundColor: cardBg, borderColor, borderWidth: isDark ? 1 : 0 }, cardShadow]}>
+            <View style={[styles.locationIconWrap, { backgroundColor: isDark ? '#334155' : GREEN_LIGHT }]}>
+              <Ionicons name="locate" size={18} color={iconColor} />
             </View>
-            <Text style={styles.locationText} numberOfLines={1}>
+            <Text style={[styles.locationText, { color: textSecondary }]} numberOfLines={1}>
               {district}, {city}
             </Text>
             <TouchableOpacity
-              style={styles.filterBtn}
+              style={[styles.filterBtn, { backgroundColor: isDark ? '#334155' : '#f0f4f0' }]}
               onPress={() => Alert.alert('Filtre', 'Filtre seçenekleri yakında.')}
             >
-              <Ionicons name="options-outline" size={20} color={GREEN} />
+              <Ionicons name="options-outline" size={20} color={iconColor} />
             </TouchableOpacity>
           </View>
-          <View style={styles.countPill}>
-            <Text style={styles.countPillText}>
+          <View style={[styles.countPill, { backgroundColor: cardBg, borderColor, borderWidth: isDark ? 1 : 0 }, cardShadow]}>
+            <Text style={[styles.countPillText, { color: textMuted }]}>
               {loadError
                 ? `${district} ilçesinde park sayısı şu an alınamıyor`
                 : `${district} ilçesinde ${parkCount} park bulunuyor`}
@@ -561,7 +575,7 @@ export default function MapParksScreen({ route, navigation }) {
 
         {/* ── Konum Butonu ── */}
         <TouchableOpacity
-          style={[styles.myLocationBtn, { top: Math.max(insets.top, 8) + 140 }]}
+          style={[styles.myLocationBtn, { backgroundColor: cardBg, borderColor, borderWidth: isDark ? 1 : 0, top: Math.max(insets.top, 8) + 140 }, cardShadow]}
           onPress={() => {
             if (userLocation && mapRef.current) {
               mapRef.current.animateToRegion(
@@ -576,7 +590,7 @@ export default function MapParksScreen({ route, navigation }) {
             }
           }}
         >
-          <Ionicons name="navigate" size={20} color={GREEN} />
+          <Ionicons name="navigate" size={20} color={iconColor} />
         </TouchableOpacity>
 
         {/* ── Boş durum ── */}
@@ -594,11 +608,13 @@ export default function MapParksScreen({ route, navigation }) {
           <Animated.View
             style={[
               styles.bottomCard,
+              { backgroundColor: cardBg, borderColor, borderWidth: isDark ? 1 : 0 },
               { paddingBottom: Math.max(insets.bottom, 12) + 64 },
               {
                 transform: [{ scale: cardAnim }],
                 opacity: cardAnim,
               },
+              cardShadow,
             ]}
           >
             {/* Üst çizgi göstergesi */}
@@ -615,7 +631,7 @@ export default function MapParksScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.cardTitle} numberOfLines={1}>
+            <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={1}>
               {selectedPark.name}
             </Text>
 
@@ -631,13 +647,13 @@ export default function MapParksScreen({ route, navigation }) {
             {/* ── Tesis Chip'leri ── */}
             <View style={styles.facilityRow}>
               {facilityChips(selectedPark).map((f) => (
-                <View key={f.label} style={styles.facilityChip}>
+                <View key={f.label} style={[styles.facilityChip, { backgroundColor: isDark ? '#334155' : '#f0f4f0' }]}>
                   {f.family === 'mci' ? (
-                    <MaterialCommunityIcons name={f.icon} size={20} color={GREEN} />
+                    <MaterialCommunityIcons name={f.icon} size={20} color={iconColor} />
                   ) : (
-                    <Ionicons name={f.icon} size={20} color={GREEN} />
+                    <Ionicons name={f.icon} size={20} color={iconColor} />
                   )}
-                  <Text style={styles.facilityLabel}>{f.label}</Text>
+                  <Text style={[styles.facilityLabel, { color: textSecondary }]}>{f.label}</Text>
                 </View>
               ))}
             </View>
@@ -655,25 +671,12 @@ export default function MapParksScreen({ route, navigation }) {
       </View>
 
       {/* ── Alt Navigasyon ── */}
-      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        <View style={styles.tabItem}>
-          <View style={styles.tabActiveSquare}>
-            <Ionicons name="map" size={22} color="#fff" />
-          </View>
-          <Text style={[styles.tabLabel, styles.tabLabelActive]}>Harita</Text>
-        </View>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('Cities')}>
-          <Ionicons name="compass-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Keşfet</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => Alert.alert('Favoriler', 'Yakında.')}>
-          <Ionicons name="heart-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Favoriler</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => Alert.alert('Profil', 'Yakında.')}>
-          <Ionicons name="person-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Profil</Text>
-        </TouchableOpacity>
+      <View style={[styles.navWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <ExploreBottomNav
+          navigation={navigation}
+          activeTab="map"
+          mapContext={route.params}
+        />
       </View>
     </SafeAreaView>
   );

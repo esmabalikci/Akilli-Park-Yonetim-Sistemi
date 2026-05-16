@@ -13,12 +13,14 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { districtsData } from '../data/districtsData';
+import ExploreBottomNav from '../components/ExploreBottomNav';
+import TurkishTextInput from '../components/TurkishTextInput';
+import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
 
-const BG = '#F9F9F8';
+const BG = '#ecfdf5'; // Açık nane yeşili arka plan
 const GREEN = '#1B4332';
 const GREEN_MUTED = '#2D6A4F';
-const TAB_ACTIVE = '#1B4332';
-
 /** Yerel dosyalar: ağ/URL sorunlarında kartların gri kalmaması için bundle içinde. */
 const FEATURED_CITY_IMAGES = {
   İstanbul: require('../assets/cities/istanbul.jpg'),
@@ -62,8 +64,22 @@ function parkAreaLabel(cityName) {
 
 export default function CitiesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { user } = useUser();
+  const { isDark } = useTheme();
   const searchRef = useRef(null);
   const [searchText, setSearchText] = useState('');
+
+  // Tema Renkleri
+  const bg = isDark ? '#0f172a' : BG;
+  const cardBg = isDark ? '#1e293b' : '#ffffff';
+  const textPrimary = isDark ? '#10b981' : '#064e3b';
+  const textSecondary = isDark ? '#94a3b8' : '#047857';
+  const searchBg = isDark ? '#1e293b' : '#d1fae5';
+  const searchBorderColor = isDark ? '#334155' : '#a7f3d0';
+  const searchInputText = isDark ? '#f8fafc' : '#1a1a1a';
+  const iconCircleBg = isDark ? '#334155' : '#d1fae5';
+  const rowBorder = isDark ? '#334155' : 'transparent';
+  const iconBtnColor = isDark ? '#10b981' : GREEN;
 
   const cities = useMemo(
     () => Object.keys(districtsData).sort((a, b) => a.localeCompare(b, 'tr')),
@@ -103,22 +119,22 @@ export default function CitiesScreen({ navigation }) {
   const bottomPad = Math.max(insets.bottom, 12) + 72;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top']}>
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => navigation.navigate('Profile', { user })}
           hitSlop={12}
         >
-          <Ionicons name="person-circle-outline" size={28} color={GREEN} />
+          <Ionicons name="person-circle-outline" size={28} color={iconBtnColor} />
         </TouchableOpacity>
-        <Text style={styles.brand}>APAYS</Text>
+        <Text style={[styles.brand, { color: iconBtnColor }]}>APAYS</Text>
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() => searchRef.current?.focus()}
           hitSlop={12}
         >
-          <Ionicons name="search-outline" size={24} color={GREEN} />
+          <Ionicons name="search-outline" size={24} color={iconBtnColor} />
         </TouchableOpacity>
       </View>
 
@@ -128,16 +144,17 @@ export default function CitiesScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.heroTitle}>Nereye gitmek istersiniz?</Text>
-        <Text style={styles.heroSub}>
+        <Text style={[styles.heroTitle, { color: textPrimary }]}>Nereye gitmek istersiniz?</Text>
+        <Text style={[styles.heroSub, { color: textSecondary }]}>
           Türkiye'nin eşsiz doğasını keşfetmek için bir il seçin.
         </Text>
 
-        <View style={styles.searchWrap}>
+        <View style={[styles.searchWrap, { backgroundColor: searchBg, borderColor: searchBorderColor }]}>
           <Ionicons name="search" size={20} color="#8D99A5" style={styles.searchIcon} />
-          <TextInput
+          <TurkishTextInput
             ref={searchRef}
-            style={styles.searchInput}
+            variant="search"
+            style={[styles.searchInput, { color: searchInputText }]}
             placeholder="İl ara (Örn. Antalya)"
             placeholderTextColor="#8D99A5"
             value={searchText}
@@ -188,12 +205,12 @@ export default function CitiesScreen({ navigation }) {
         {filteredOthers.length > 0 ? (
           <>
             <View style={styles.otherHeader}>
-              <View style={[styles.otherIconCircle, styles.otherIconMargin]}>
-                <Ionicons name="map-outline" size={20} color="#6B7280" />
+              <View style={[styles.otherIconCircle, styles.otherIconMargin, { backgroundColor: iconCircleBg }]}>
+                <Ionicons name="map-outline" size={20} color={isDark ? '#cbd5e1' : "#6B7280"} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.otherTitle}>Diğer İller</Text>
-                <Text style={styles.otherSub}>Türkiye'nin 81 ilini keşfedin</Text>
+                <Text style={[styles.otherTitle, { color: textPrimary }]}>Diğer İller</Text>
+                <Text style={[styles.otherSub, { color: textSecondary }]}>Türkiye'nin 81 ilini keşfedin</Text>
               </View>
             </View>
 
@@ -202,16 +219,16 @@ export default function CitiesScreen({ navigation }) {
               return (
                 <TouchableOpacity
                   key={city}
-                  style={styles.otherRow}
+                  style={[styles.otherRow, { backgroundColor: cardBg, borderColor: rowBorder, borderWidth: isDark ? 1 : 0 }]}
                   activeOpacity={0.85}
                   onPress={() => onCityCardPress(city)}
                 >
                   <View style={styles.otherDot} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.otherName}>{city}</Text>
+                    <Text style={[styles.otherName, { color: textPrimary }]}>{city}</Text>
                     {area ? <Text style={styles.otherHint}>{area}</Text> : null}
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={GREEN_MUTED} />
+                  <Ionicons name="chevron-forward" size={20} color={isDark ? '#475569' : GREEN_MUTED} />
                 </TouchableOpacity>
               );
             })}
@@ -223,42 +240,8 @@ export default function CitiesScreen({ navigation }) {
         ) : null}
       </ScrollView>
 
-      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() =>
-            Alert.alert(
-              'Harita',
-              'Haritayı il ve ilçe seçtikten sonra görebilirsiniz. Önce bir il seçin.'
-            )
-          }
-        >
-          <Ionicons name="map-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Harita</Text>
-        </TouchableOpacity>
-
-        <View style={styles.tabItem}>
-          <View style={styles.tabPill}>
-            <Ionicons name="compass" size={22} color="#fff" />
-            <Text style={[styles.tabLabelActive, styles.tabLabelActiveSpacing]}>Keşfet</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => Alert.alert('Favoriler', 'Favoriler ekranı yakında eklenecek.')}
-        >
-          <Ionicons name="heart-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Favoriler</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => Alert.alert('Profil', 'Profil ekranı yakında eklenecek.')}
-        >
-          <Ionicons name="person-outline" size={22} color={GREEN} />
-          <Text style={styles.tabLabel}>Profil</Text>
-        </TouchableOpacity>
+      <View style={[styles.navWrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <ExploreBottomNav navigation={navigation} activeTab="explore" />
       </View>
     </SafeAreaView>
   );
@@ -294,23 +277,26 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 26,
-    fontWeight: '700',
-    color: GREEN,
+    fontWeight: '800',
+    color: '#064e3b',
     marginBottom: 8,
   },
   heroSub: {
     fontSize: 15,
-    color: '#5C6B73',
+    color: '#047857',
     lineHeight: 22,
     marginBottom: 20,
+    fontWeight: '500',
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECEEEA',
+    backgroundColor: '#d1fae5', // Arka planla uyumlu fıstık yeşili
     borderRadius: 14,
     paddingHorizontal: 14,
     marginBottom: 22,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
   },
   searchIcon: { marginRight: 8 },
   searchInput: {
@@ -402,31 +388,35 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#E8E9E6',
+    backgroundColor: '#d1fae5', // Fıstık yeşili arka plan
     alignItems: 'center',
     justifyContent: 'center',
   },
   otherIconMargin: { marginRight: 12 },
   otherTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#374151',
+    fontWeight: '800',
+    color: '#064e3b',
   },
   otherSub: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#047857',
     marginTop: 2,
+    fontWeight: '500',
   },
   otherRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#ECEEEA',
+    marginBottom: 12,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   otherDot: {
     width: 8,
@@ -452,53 +442,10 @@ const styles = StyleSheet.create({
     marginTop: 24,
     fontSize: 15,
   },
-  bottomNav: {
+  navWrap: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-around',
-    paddingTop: 10,
-    paddingHorizontal: 8,
-    backgroundColor: '#fff',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 12 },
-    }),
   },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 64,
-    paddingVertical: 4,
-  },
-  tabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: TAB_ACTIVE,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  tabLabel: {
-    fontSize: 11,
-    marginTop: 4,
-    color: GREEN,
-    fontWeight: '600',
-  },
-  tabLabelActive: {
-    fontSize: 13,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  tabLabelActiveSpacing: { marginLeft: 6 },
 });

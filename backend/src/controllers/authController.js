@@ -2,6 +2,13 @@
 const { sql, config } = require('../config/db');
 const bcrypt = require('bcryptjs');
 
+const dbNotConfigured = (res) =>
+  res.status(503).json({
+    success: false,
+    message:
+      'Veritabanı yapılandırması eksik. backend/.env dosyasını kontrol edin.',
+  });
+
 /**
  * @route   POST /api/auth/register
  * @desc    Yeni kullanıcı kaydı oluşturur
@@ -9,6 +16,10 @@ const bcrypt = require('bcryptjs');
  */
 const registerUser = async (req, res) => {
     try {
+        if (!config) {
+            return dbNotConfigured(res);
+        }
+
         const { full_name, email, password } = req.body;
 
         // 1. Temel Doğrulamalar (Validation)
@@ -94,6 +105,10 @@ const registerUser = async (req, res) => {
  */
 const loginUser = async (req, res) => {
     try {
+        if (!config) {
+            return dbNotConfigured(res);
+        }
+
         const { email, password } = req.body;
 
         // 1. Temel Doğrulamalar
@@ -156,6 +171,10 @@ const loginUser = async (req, res) => {
  */
 const forgotPassword = async (req, res) => {
     try {
+        if (!config) {
+            return dbNotConfigured(res);
+        }
+
         const { email } = req.body;
 
         if (!email) {
@@ -192,8 +211,172 @@ const forgotPassword = async (req, res) => {
     }
 };
 
+/**
+ * @route   PUT /api/auth/update
+ * @desc    Kullanıcı bilgilerini günceller
+ * @access  Public
+ */
+const updateUser = async (req, res) => {
+    try {
+        if (!config) {
+            return dbNotConfigured(res);
+        }
+
+        const { id, full_name, email } = req.body;
+
+        if (!id || !full_name || !email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lütfen tüm alanları (ad soyad, email) doldurun.'
+            });
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lütfen geçerli bir email adresi girin.'
+            });
+        }
+
+        const pool = await sql.connect(config);
+
+        // Kendi ID'si dışındaki kullanıcılarda bu email var mı kontrol et
+        const checkUser = await pool.request()
+            .input('Email', sql.NVARCHAR, email)
+            .input('Id', sql.Int, id)
+            .query('SELECT Id FROM Users WHERE Email = @Email AND Id != @Id');
+
+        if (checkUser.recordset.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Bu email adresi başka bir kullanıcı tarafından kullanılıyor.'
+            });
+        }
+
+        // Güncelle
+        const result = await pool.request()
+            .input('FullName', sql.NVARCHAR, full_name)
+            .input('Email', sql.NVARCHAR, email)
+            .input('Id', sql.Int, id)
+            .query(`
+                UPDATE Users 
+                SET FullName = @FullName, Email = @Email 
+                OUTPUT INSERTED.Id, INSERTED.FullName, INSERTED.Email 
+                WHERE Id = @Id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Kullanıcı bulunamadı.'
+            });
+        }
+
+        const updatedUser = result.recordset[0];
+
+        return res.status(200).json({
+            success: true,
+            message: 'Bilgiler başarıyla güncellendi.',
+            user: {
+                id: updatedUser.Id,
+                full_name: updatedUser.FullName,
+                email: updatedUser.Email
+            }
+        });
+
+    } catch (error) {
+        console.error('Güncelleme Hatası (Update Error):', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Sunucu hatası oluştu, lütfen daha sonra tekrar deneyin.'
+        });
+    }
+};
+
+/**
+ * @route   PUT /api/auth/change-password
+ * @desc    Kullanıcının şifresini günceller
+ * @access  Public
+ */
+const changePassword = async (req, res) => {
+    try {
+        if (!config) return dbNotConfigured(res);
+
+        const { id, old_password, new_password } = req.body;
+
+        if (!id || !old_password || !new_password) {
+            return res.status(400).json({ success: false, message: 'Lütfen tüm alanları doldurun.' });
+        }
+
+        if (new_password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Yeni şifreniz en az 6 karakter olmalıdır.' });
+        }
+
+        const pool = await sql.connect(config);
+        const userRes = await pool.request()
+            .input('Id', sql.Int, id)
+            .query('SELECT PasswordHash FROM Users WHERE Id = @Id');
+
+        if (userRes.recordset.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
+        }
+
+        const isMatch = await bcrypt.compare(old_password, userRes.recordset[0].PasswordHash);
+        if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'Mevcut şifreniz hatalı.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedNewPassword = await bcrypt.hash(new_password, salt);
+
+        await pool.request()
+            .input('PasswordHash', sql.NVARCHAR, hashedNewPassword)
+            .input('Id', sql.Int, id)
+            .query('UPDATE Users SET PasswordHash = @PasswordHash WHERE Id = @Id');
+
+        return res.status(200).json({ success: true, message: 'Şifreniz başarıyla değiştirildi.' });
+    } catch (error) {
+        console.error('Şifre Değiştirme Hatası:', error);
+        return res.status(500).json({ success: false, message: 'Sunucu hatası oluştu.' });
+    }
+};
+
+/**
+ * @route   DELETE /api/auth/delete-account
+ * @desc    Kullanıcının hesabını siler
+ * @access  Public
+ */
+const deleteAccount = async (req, res) => {
+    try {
+        if (!config) return dbNotConfigured(res);
+
+        const { id } = req.body;
+
+        if (!id) {
+            return res.status(400).json({ success: false, message: 'Geçersiz istek.' });
+        }
+
+        const pool = await sql.connect(config);
+        
+        // Önce rezervasyonları sil
+        await pool.request().input('UserId', sql.Int, id).query('DELETE FROM Reservations WHERE UserId = @UserId');
+        
+        // Sonra kullanıcıyı sil
+        await pool.request().input('Id', sql.Int, id).query('DELETE FROM Users WHERE Id = @Id');
+
+        return res.status(200).json({ success: true, message: 'Hesabınız başarıyla silindi.' });
+    } catch (error) {
+        console.error('Hesap Silme Hatası:', error);
+        return res.status(500).json({ success: false, message: 'Sunucu hatası oluştu.' });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
-    forgotPassword
+    forgotPassword,
+    updateUser,
+    changePassword,
+    deleteAccount
 };

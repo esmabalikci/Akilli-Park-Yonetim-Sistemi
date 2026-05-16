@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import { useFavorites } from '../context/FavoritesContext';
+import { getApiBaseUrl } from '../config/api';
 
-const BG = '#e6f7f5';
 const GREEN = '#1B4332';
 const GREEN_MID = '#2D6A4F';
-const GREEN_LIGHT = '#d8f3dc';
-const CARD_BG = '#FFFFFF';
 const RED_LIGHT = '#FEE2E2';
 const RED = '#DC2626';
 
@@ -60,13 +62,68 @@ const MENU_ITEMS = [
 
 export default function ProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const user = route?.params?.user;
+  const { user, clearUser } = useUser();
+  const { isDark } = useTheme();
+  const { getFavoriteWithComments } = useFavorites();
 
   const displayName = user?.full_name || 'Kullanıcı';
   const displayEmail = user?.email || 'kullanici@example.com';
 
+  const [reservationCount, setReservationCount] = useState(0);
+  const favoriteCount = getFavoriteWithComments().length;
+
+  useFocusEffect(
+    useCallback(() => {
+      const fetchReservations = async () => {
+        try {
+          const baseUrl = getApiBaseUrl();
+          const userId = user?.id;
+          if (!userId) return;
+
+          const url = `${baseUrl}/api/reservations?userId=${userId}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setReservationCount(data.length);
+          }
+        } catch (error) {
+          console.error('Rezervasyon sayısı çekilemedi:', error);
+        }
+      };
+
+      fetchReservations();
+    }, [user?.id])
+  );
+
+  // Tema renkleri
+  const bg = isDark ? '#0f172a' : '#e6f7f5';
+  const cardBg = isDark ? '#1e293b' : '#FFFFFF';
+  const greenLight = isDark ? '#334155' : '#d8f3dc';
+  const textPrimary = isDark ? '#10b981' : GREEN;
+  const textSecondary = isDark ? '#94a3b8' : GREEN_MID;
+  const borderColor = isDark ? '#475569' : '#E5E7EB';
+  const menuText = isDark ? '#e2e8f0' : '#374151';
+
   const handleMenuPress = (item) => {
-    Alert.alert(item.title, `${item.title} ekranı yakında eklenecek.`);
+    switch (item.id) {
+      case 'personal':
+        navigation.navigate('PersonalInfo');
+        break;
+      case 'notifications':
+        navigation.navigate('Notifications');
+        break;
+      case 'payment':
+        navigation.navigate('PaymentMethods');
+        break;
+      case 'help':
+        navigation.navigate('HelpCenter');
+        break;
+      case 'privacy':
+        navigation.navigate('PrivacySecurity');
+        break;
+      default:
+        Alert.alert(item.title, `${item.title} ekranı yakında eklenecek.`);
+    }
   };
 
   const handleLogout = () => {
@@ -78,25 +135,28 @@ export default function ProfileScreen({ route, navigation }) {
         {
           text: 'Çıkış Yap',
           style: 'destructive',
-          onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }),
+          onPress: () => {
+            clearUser();
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          },
         },
       ]
     );
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top']}>
       {/* ── Üst Bar ── */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color={GREEN} />
+          <Ionicons name="arrow-back" size={24} color={textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.topTitle}>Profile</Text>
+        <Text style={[styles.topTitle, { color: textPrimary }]}>Profile</Text>
         <TouchableOpacity
-          onPress={() => Alert.alert('Ayarlar', 'Ayarlar ekranı yakında.')}
+          onPress={() => navigation.navigate('Settings')}
           hitSlop={12}
         >
-          <Ionicons name="settings-outline" size={22} color={GREEN} />
+          <Ionicons name="settings-outline" size={22} color={textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -106,7 +166,7 @@ export default function ProfileScreen({ route, navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Profil Kartı ── */}
-        <View style={styles.profileCard}>
+        <View style={[styles.profileCard, { backgroundColor: greenLight }]}>
           <View style={styles.avatarWrap}>
             <Image
               source={{
@@ -120,57 +180,57 @@ export default function ProfileScreen({ route, navigation }) {
               <Ionicons name="pencil" size={12} color="#fff" />
             </View>
           </View>
-          <Text style={styles.profileName}>{displayName}</Text>
-          <Text style={styles.profileEmail}>{displayEmail}</Text>
+          <Text style={[styles.profileName, { color: textPrimary }]}>{displayName}</Text>
+          <Text style={[styles.profileEmail, { color: textSecondary }]}>{displayEmail}</Text>
         </View>
 
         {/* ── İstatistikler ── */}
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <View style={[styles.statIconWrap, { backgroundColor: '#E3F2FD' }]}>
               <Ionicons name="document-text" size={20} color="#1565C0" />
             </View>
-            <Text style={styles.statNumber}>12</Text>
-            <Text style={styles.statLabel}>Rezervasyon</Text>
+            <Text style={[styles.statNumber, { color: textPrimary }]}>{reservationCount}</Text>
+            <Text style={[styles.statLabel, { color: textSecondary }]}>Rezervasyon</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <View style={[styles.statIconWrap, { backgroundColor: RED_LIGHT }]}>
               <Ionicons name="heart" size={20} color={RED} />
             </View>
-            <Text style={styles.statNumber}>4</Text>
-            <Text style={styles.statLabel}>Favori Parklar</Text>
+            <Text style={[styles.statNumber, { color: textPrimary }]}>{favoriteCount}</Text>
+            <Text style={[styles.statLabel, { color: textSecondary }]}>Favori Parklar</Text>
           </View>
         </View>
 
         {/* ── Menü Listesi ── */}
-        <View style={styles.menuCard}>
+        <View style={[styles.menuCard, { backgroundColor: cardBg }]}>
           {MENU_ITEMS.map((item, index) => (
             <TouchableOpacity
               key={item.id}
               style={[
                 styles.menuItem,
-                index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
+                index < MENU_ITEMS.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
               ]}
               activeOpacity={0.7}
               onPress={() => handleMenuPress(item)}
             >
-              <View style={[styles.menuIconWrap, { backgroundColor: item.iconBg }]}>
-                <Ionicons name={item.icon} size={20} color={item.iconColor} />
+              <View style={[styles.menuIconWrap, { backgroundColor: isDark ? '#334155' : item.iconBg }]}>
+                <Ionicons name={item.icon} size={20} color={isDark ? '#cbd5e1' : item.iconColor} />
               </View>
-              <Text style={styles.menuItemText}>{item.title}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              <Text style={[styles.menuItemText, { color: menuText }]}>{item.title}</Text>
+              <Ionicons name="chevron-forward" size={20} color={isDark ? '#64748b' : '#9CA3AF'} />
             </TouchableOpacity>
           ))}
         </View>
 
         {/* ── Çıkış Butonu ── */}
         <TouchableOpacity
-          style={styles.logoutBtn}
+          style={[styles.logoutBtn, isDark && { backgroundColor: '#450a0a' }]}
           activeOpacity={0.8}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={20} color={RED} />
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
+          <Ionicons name="log-out-outline" size={20} color={isDark ? '#f87171' : RED} />
+          <Text style={[styles.logoutText, isDark && { color: '#f87171' }]}>Çıkış Yap</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -180,7 +240,6 @@ export default function ProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: BG,
   },
 
   /* ── Üst Bar ── */
@@ -205,7 +264,6 @@ const styles = StyleSheet.create({
   profileCard: {
     marginHorizontal: 20,
     marginTop: 4,
-    backgroundColor: GREEN_LIGHT,
     borderRadius: 20,
     alignItems: 'center',
     paddingVertical: 28,
@@ -265,7 +323,6 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: CARD_BG,
     borderRadius: 16,
     alignItems: 'center',
     paddingVertical: 18,
@@ -303,7 +360,6 @@ const styles = StyleSheet.create({
   menuCard: {
     marginHorizontal: 20,
     marginTop: 18,
-    backgroundColor: CARD_BG,
     borderRadius: 18,
     overflow: 'hidden',
     ...Platform.select({

@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
  * - EXPO_PUBLIC_API_URL tanımlıysa onu kullanın (fiziksel cihaz / farklı port).
  * - Expo Go: Metro bilgisayarının IP’si (debuggerHost / hostUri) ile 3000 portu.
  * - Android emülatör: 10.0.2.2
- * - iOS simülatör: localhost
+ * - iOS simülatör: 
  */
 export function getApiBaseUrl() {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
@@ -22,7 +22,7 @@ export function getApiBaseUrl() {
   if (
     debuggerHost &&
     debuggerHost !== '127.0.0.1' &&
-    !/^localhost$/i.test(debuggerHost)
+    !/^$/i.test(debuggerHost)
   ) {
     return `http://${debuggerHost}:3000`;
   }

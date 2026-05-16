@@ -17,11 +17,26 @@ import ParkDetailScreen from './screens/ParkDetailScreen.js';
 import MapParksScreen from './screens/MapParksScreen.js';
 import ProfileScreen from './screens/ProfileScreen.js';
 import ReservationScreen from './screens/ReservationScreen.js';
+import NotificationsScreen from './screens/NotificationsScreen.js';
+import { UserProvider } from './context/UserContext';
+import { FavoritesProvider } from './context/FavoritesContext';
+import { ThemeProvider } from './context/ThemeContext';
+import FavoritesScreen from './screens/FavoritesScreen.js';
+
+import PersonalInfoScreen from './screens/PersonalInfoScreen.js';
+import PaymentMethodsScreen from './screens/PaymentMethodsScreen.js';
+import HelpCenterScreen from './screens/HelpCenterScreen.js';
+import PrivacySecurityScreen from './screens/PrivacySecurityScreen.js';
+import SettingsScreen from './screens/SettingsScreen.js';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <SafeAreaProvider>
+      <ThemeProvider>
+      <UserProvider>
+      <FavoritesProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Login">
           <Stack.Screen
@@ -111,8 +126,29 @@ export default function App() {
             component={ReservationScreen}
             options={{ headerShown: false }}
           />
+
+          <Stack.Screen
+            name="Notifications"
+            component={NotificationsScreen}
+            options={{ headerShown: false }}
+          />
+
+          <Stack.Screen
+            name="Favorites"
+            component={FavoritesScreen}
+            options={{ headerShown: false }}
+          />
+
+          <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="HelpCenter" component={HelpCenterScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
+      </FavoritesProvider>
+      </UserProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
