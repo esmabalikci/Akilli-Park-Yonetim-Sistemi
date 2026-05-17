@@ -22,11 +22,11 @@ export default function CottageSelectionScreen({ route, navigation }) {
   }));
 
   const handleSelectCottage = (cottage) => {
-    Alert.alert(
-      'Çardak Seçildi',
-      `${cottage.name} seçildi. Sonraki adımda kamera/video kontrol sayfası açılacak.`
-    );
-  };
+  navigation.navigate('CottageCameraScreen', {
+    park,
+    cottage,
+  });
+};
 
   return (
     <View style={styles.container}>

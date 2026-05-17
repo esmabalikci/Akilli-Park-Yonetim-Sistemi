@@ -22,7 +22,7 @@ import { UserProvider } from './context/UserContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ThemeProvider } from './context/ThemeContext';
 import FavoritesScreen from './screens/FavoritesScreen.js';
-
+import CottageCameraScreen from './screens/CottageCameraScreen';
 import PersonalInfoScreen from './screens/PersonalInfoScreen.js';
 import PaymentMethodsScreen from './screens/PaymentMethodsScreen.js';
 import HelpCenterScreen from './screens/HelpCenterScreen.js';
@@ -71,6 +71,11 @@ export default function App() {
             component={HomeScreen}
             options={{ headerShown: false }}
           />
+<Stack.Screen
+  name="CottageCameraScreen"
+  component={CottageCameraScreen}
+  options={{ headerShown: false }}
+/>
 
           <Stack.Screen
             name="Cities"
