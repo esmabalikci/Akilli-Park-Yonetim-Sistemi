@@ -365,11 +365,11 @@ export default function ParkDetailScreen({ route, navigation }) {
         )}
 
         <TouchableOpacity
-          style={styles.reserveButton}
-          onPress={openReservationModal}
-        >
-          <Text style={styles.reserveButtonText}>Rezervasyon Yap</Text>
-        </TouchableOpacity>
+  style={styles.reserveButton}
+  onPress={() => navigation.navigate('CottageSelectionScreen', { park })}
+>
+  <Text style={styles.reserveButtonText}>Çardak Seç</Text>
+</TouchableOpacity>
       </View>
 
       <Modal

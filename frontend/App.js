@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import EventsScreen from './screens/EventsScreen.js';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
+import CottageSelectionScreen from './screens/CottageSelectionScreen';
 import LoginScreen from './screens/LoginScreen.js';
 import RegisterScreen from './screens/RegisterScreen.js';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen.js';
@@ -55,7 +55,11 @@ export default function App() {
             component={RegisterScreen}
             options={{ headerShown: false }}
           />
-
+ <Stack.Screen
+  name="CottageSelectionScreen"
+  component={CottageSelectionScreen}
+  options={{ headerShown: false }}
+/>
           <Stack.Screen
             name="ForgotPassword"
             component={ForgotPasswordScreen}
