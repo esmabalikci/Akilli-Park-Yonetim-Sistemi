@@ -7,10 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
+  ImageBackground,
   ActivityIndicator,
   Linking,
   Alert,
+  Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { getDummyParks } from '../data/dummyParks.js';
 import TurkishTextInput from '../components/TurkishTextInput';
@@ -30,6 +33,24 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return (R * c).toFixed(1);
 };
 
+const FALLBACK_IMAGES = [
+  'https://images.unsplash.com/photo-1519331379826-f10be5486c6f?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1498453472714-23eb46b38466?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?q=80&w=2074&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1605141571477-9430c00d41e2?q=80&w=2070&auto=format&fit=crop'
+];
+
+const getFallbackImage = (identifier) => {
+  const str = String(identifier || 'park');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % FALLBACK_IMAGES.length;
+  return FALLBACK_IMAGES[index];
+};
+
 export default function ParksScreen({ navigation, route }) {
   const { city, district } = route.params || {};
   const [searchText, setSearchText] = useState('');
@@ -46,14 +67,12 @@ export default function ParksScreen({ navigation, route }) {
         if (status !== 'granted') {
           Alert.alert('İzin Gerekli', 'Konum izni verilmedi. Mesafe bilgisi gösterilemiyor.');
         } else {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
+          // Konumu Gümüşhane olarak sabitledik (Kullanıcı İsteği)
           setUserLocation({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
+            latitude: 40.4608,
+            longitude: 39.4803,
           });
-          console.log('Kullanıcı konumu:', location.coords.latitude, location.coords.longitude);
+          console.log('Kullanıcı konumu (Gümüşhane sabit):', 40.4608, 39.4803);
         }
       } catch (error) {
         console.error('Konum alınamadı:', error);
@@ -110,71 +129,77 @@ export default function ParksScreen({ navigation, route }) {
       {/* Üst renk bandı - doluluk durumuna göre */}
       <View style={[styles.cardTopBand, { backgroundColor: getSlotColor(item.emptySlots) }]} />
 
-      <View style={styles.cardBody}>
-        {/* Park adı ve ikonu */}
-        <View style={styles.cardHeader}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.iconText}>🅿️</Text>
-          </View>
-          <View style={styles.cardTitleArea}>
-            <Text style={styles.parkName}>{item.name}</Text>
-            <View style={styles.parkSubRow}>
-              <Text style={styles.parkId}>ID: {item.id}</Text>
-              {userLocation && (
-                <Text style={styles.distanceText}>
-                  📍 {getDistance(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude)} km
-                </Text>
-              )}
+      <ImageBackground 
+        source={{ uri: item.image || getFallbackImage(item.id) }}
+        style={styles.cardImageBg}
+        imageStyle={styles.cardImageStyle}
+      >
+        <View style={styles.cardBodyOverlay}>
+          {/* Park adı ve ikonu */}
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconText}>🅿️</Text>
+            </View>
+            <View style={styles.cardTitleArea}>
+              <Text style={styles.parkName}>{item.name}</Text>
+              <View style={styles.parkSubRow}>
+                <Text style={styles.parkId}>ID: {item.id}</Text>
+                {userLocation && (
+                  <Text style={styles.distanceText}>
+                    📍 {getDistance(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude)} km
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Boş slot bilgisi */}
-        <View style={styles.slotRow}>
-          <View style={styles.slotInfo}>
-            <Text style={styles.slotNumber}>{item.emptySlots}</Text>
-            <Text style={styles.slotLabel}>Boş Yer</Text>
+          {/* Boş slot bilgisi */}
+          <View style={styles.slotRow}>
+            <View style={styles.slotInfo}>
+              <Text style={styles.slotNumber}>{item.emptySlots}</Text>
+              <Text style={styles.slotLabel}>Boş Yer</Text>
+            </View>
+
+            <View style={[styles.statusBadge, { backgroundColor: getSlotColor(item.emptySlots) + '20' }]}>
+              <View style={[styles.statusDot, { backgroundColor: getSlotColor(item.emptySlots) }]} />
+              <Text style={[styles.statusText, { color: getSlotColor(item.emptySlots) }]}>
+                {getSlotLabel(item.emptySlots)}
+              </Text>
+            </View>
           </View>
 
-          <View style={[styles.statusBadge, { backgroundColor: getSlotColor(item.emptySlots) + '20' }]}>
-            <View style={[styles.statusDot, { backgroundColor: getSlotColor(item.emptySlots) }]} />
-            <Text style={[styles.statusText, { color: getSlotColor(item.emptySlots) }]}>
-              {getSlotLabel(item.emptySlots)}
-            </Text>
+          {/* Buton satırı */}
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[
+                styles.detailButton,
+                item.emptySlots === 0 && styles.detailButtonDisabled,
+              ]}
+              onPress={() => {
+                console.log('Detay - Park ID:', item.id);
+              }}
+              disabled={item.emptySlots === 0}
+            >
+              <Text style={styles.buttonText}>
+                {item.emptySlots === 0 ? 'Park Dolu' : 'Detayı Gör →'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.directionsButton}
+              onPress={() => {
+                const origin = userLocation
+                  ? `&origin=${userLocation.latitude},${userLocation.longitude}`
+                  : '';
+                const url = `https://www.google.com/maps/dir/?api=1${origin}&destination=${item.latitude},${item.longitude}`;
+                Linking.openURL(url);
+              }}
+            >
+              <Text style={styles.directionsButtonText}>📍 Yol Tarifi</Text>
+            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Buton satırı */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[
-              styles.detailButton,
-              item.emptySlots === 0 && styles.detailButtonDisabled,
-            ]}
-            onPress={() => {
-              console.log('Detay - Park ID:', item.id);
-            }}
-            disabled={item.emptySlots === 0}
-          >
-            <Text style={styles.buttonText}>
-              {item.emptySlots === 0 ? 'Park Dolu' : 'Detayı Gör →'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.directionsButton}
-            onPress={() => {
-              const origin = userLocation
-                ? `&origin=${userLocation.latitude},${userLocation.longitude}`
-                : '';
-              const url = `https://www.google.com/maps/dir/?api=1${origin}&destination=${item.latitude},${item.longitude}`;
-              Linking.openURL(url);
-            }}
-          >
-            <Text style={styles.directionsButtonText}>📍 Yol Tarifi</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </ImageBackground>
     </TouchableOpacity>
   );
 
@@ -189,7 +214,12 @@ export default function ParksScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>🚗 Parkları Keşfet</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#0f5c69" />
+        </TouchableOpacity>
+        <Text style={styles.header}>🚗 Parkları Keşfet</Text>
+      </View>
       <Text style={styles.subHeader}>
         Toplam {parks.length} park • {parks.reduce((a, p) => a + p.emptySlots, 0)} boş yer
       </Text>
@@ -230,12 +260,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f0f7f8',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    marginTop: Platform.OS === 'ios' ? 40 : 20,
+  },
+  backBtn: {
+    padding: 8,
+    marginRight: 8,
+  },
   header: {
+    flex: 1,
     fontSize: 26,
     fontWeight: 'bold',
     color: '#0f5c69',
     textAlign: 'center',
-    marginBottom: 4,
+    marginRight: 40, // back btn genişliği kadar kompanse etmek için
   },
   subHeader: {
     fontSize: 14,
@@ -271,8 +312,15 @@ const styles = StyleSheet.create({
     height: 4,
     width: '100%',
   },
-  cardBody: {
+  cardImageBg: {
+    width: '100%',
+  },
+  cardImageStyle: {
+    opacity: 0.15,
+  },
+  cardBodyOverlay: {
     padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
   },
   cardHeader: {
     flexDirection: 'row',

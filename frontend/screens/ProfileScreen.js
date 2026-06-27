@@ -15,7 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
 import { useFavorites } from '../context/FavoritesContext';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 
 const GREEN = '#1B4332';
 const GREEN_MID = '#2D6A4F';
@@ -64,26 +64,21 @@ export default function ProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { user, clearUser } = useUser();
   const { isDark } = useTheme();
-  const { getFavoriteWithComments } = useFavorites();
+  const { getFavoriteParks } = useFavorites();
 
   const displayName = user?.full_name || 'Kullanıcı';
   const displayEmail = user?.email || 'kullanici@example.com';
 
   const [reservationCount, setReservationCount] = useState(0);
-  const favoriteCount = getFavoriteWithComments().length;
+  const favoriteCount = getFavoriteParks().length;
 
   useFocusEffect(
     useCallback(() => {
       const fetchReservations = async () => {
         try {
-          const baseUrl = getApiBaseUrl();
-          const userId = user?.id;
-          if (!userId) return;
-
-          const url = `${baseUrl}/api/reservations?userId=${userId}`;
-          const response = await fetch(url);
-          const data = await response.json();
-          if (Array.isArray(data)) {
+          if (!user?.id) return;
+          const { response, data } = await apiFetch('/api/reservations');
+          if (response.ok && Array.isArray(data)) {
             setReservationCount(data.length);
           }
         } catch (error) {

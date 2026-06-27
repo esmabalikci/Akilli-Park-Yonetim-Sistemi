@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,66 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import gazeboImage from '../assets/gazebo.png';
+import { apiFetch } from '../utils/apiClient';
+import { getParkKey } from '../utils/parkKey';
 
 export default function CottageSelectionScreen({ route, navigation }) {
   const { park } = route.params;
+  const [cottages, setCottages] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const cottageCount = park?.cottageCount || 20;
+  useEffect(() => {
+    const loadCottages = async () => {
+      try {
+        const parkOsmId = encodeURIComponent(getParkKey(park));
+        const count = park?.cottageCount || 20;
+        const { response, data } = await apiFetch(
+          `/api/picnic-areas/${parkOsmId}?count=${count}`
+        );
 
-  const cottages = Array.from({ length: cottageCount }, (_, index) => ({
-    id: index + 1,
-    name: `${index + 1} Numaralı Çardak`,
-  }));
+        if (response.ok && data.success && Array.isArray(data.cottages)) {
+          setCottages(data.cottages);
+        } else {
+          setCottages(
+            Array.from({ length: count }, (_, index) => ({
+              id: index + 1,
+              name: `${index + 1} Numaralı Çardak`,
+              available: true,
+            }))
+          );
+        }
+      } catch {
+        const count = park?.cottageCount || 20;
+        setCottages(
+          Array.from({ length: count }, (_, index) => ({
+            id: index + 1,
+            name: `${index + 1} Numaralı Çardak`,
+            available: true,
+          }))
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCottages();
+  }, [park]);
 
   const handleSelectCottage = (cottage) => {
-  navigation.navigate('CottageCameraScreen', {
-    park,
-    cottage,
-  });
-};
+    if (cottage.available === false) {
+      Alert.alert('Müsait Değil', 'Bu çardak şu an rezerve edilmiş görünüyor.');
+      return;
+    }
+
+    navigation.navigate('CottageCameraScreen', {
+      park,
+      cottage,
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -50,22 +90,37 @@ export default function CottageSelectionScreen({ route, navigation }) {
           Rezervasyon yapmadan önce kullanmak istediğiniz çardağı seçin.
         </Text>
 
-        <View style={styles.grid}>
-          {cottages.map((cottage) => (
-            <TouchableOpacity
-              key={cottage.id}
-              style={styles.cottageButton}
-              onPress={() => handleSelectCottage(cottage)}
-            >
-              <Image source={gazeboImage} style={styles.cottageImage} />
+        {loading ? (
+          <ActivityIndicator size="large" color="#059669" style={{ marginTop: 40 }} />
+        ) : (
+          <View style={styles.grid}>
+            {cottages.map((cottage) => {
+              const unavailable = cottage.available === false;
+              return (
+                <TouchableOpacity
+                  key={cottage.id}
+                  style={[
+                    styles.cottageButton,
+                    unavailable && styles.cottageButtonDisabled,
+                  ]}
+                  onPress={() => handleSelectCottage(cottage)}
+                  disabled={unavailable}
+                >
+                  <Image source={gazeboImage} style={styles.cottageImage} />
 
-              <View style={styles.cottageInfo}>
-                <Text style={styles.cottageNumber}>{cottage.id}</Text>
-                <Text style={styles.cottageText}>Çardak</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+                  <View style={styles.cottageInfo}>
+                    <Text style={[styles.cottageNumber, unavailable && styles.disabledText]}>
+                      {cottage.id}
+                    </Text>
+                    <Text style={[styles.cottageText, unavailable && styles.disabledText]}>
+                      {unavailable ? 'Dolu' : 'Çardak'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -125,6 +180,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#10b981',
   },
+  cottageButtonDisabled: {
+    opacity: 0.55,
+    borderLeftColor: '#94a3b8',
+  },
   cottageImage: {
     width: 80,
     height: 60,
@@ -145,5 +204,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#047857',
     marginTop: 2,
+  },
+  disabledText: {
+    color: '#94a3b8',
   },
 });

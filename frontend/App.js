@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import React from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import LostFoundScreen from './screens/LostFoundScreen.js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,7 +19,7 @@ import MapParksScreen from './screens/MapParksScreen.js';
 import ProfileScreen from './screens/ProfileScreen.js';
 import ReservationScreen from './screens/ReservationScreen.js';
 import NotificationsScreen from './screens/NotificationsScreen.js';
-import { UserProvider } from './context/UserContext';
+import { UserProvider, useUser } from './context/UserContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ThemeProvider } from './context/ThemeContext';
 import FavoritesScreen from './screens/FavoritesScreen.js';
@@ -31,14 +32,22 @@ import SettingsScreen from './screens/SettingsScreen.js';
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
+function RootNavigator() {
+  const { user, token, bootstrapping } = useUser();
+
+  if (bootstrapping) {
+    return (
+      <View style={styles.boot}>
+        <ActivityIndicator size="large" color="#26A69A" />
+      </View>
+    );
+  }
+
+  const initialRoute = user && token ? 'Cities' : 'Login';
+
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-      <UserProvider>
-      <FavoritesProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Login">
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
           <Stack.Screen
             name="Login"
             component={LoginScreen}
@@ -155,9 +164,28 @@ export default function App() {
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+      <UserProvider>
+      <FavoritesProvider>
+        <RootNavigator />
       </FavoritesProvider>
       </UserProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E1F5FE',
+  },
+});

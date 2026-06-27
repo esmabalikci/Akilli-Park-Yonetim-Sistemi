@@ -1,6 +1,7 @@
 // Gerekli modüllerin çağrılması
 const { sql, config } = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { signToken } = require('../utils/jwt');
 
 const dbNotConfigured = (res) =>
   res.status(503).json({
@@ -56,8 +57,20 @@ const registerUser = async (req, res) => {
         if (checkUser.recordset.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Bu email adresi zaten kullanımda.'
+                message: 'Bu mail farklı bir kullanıcı tarafından kullanılıyor.'
             });
+        }
+
+        // 2.5. Şifrenin başka bir kullanıcı tarafından kullanılıp kullanılmadığını kontrol et
+        const allUsers = await pool.request().query('SELECT Id, PasswordHash FROM Users WHERE PasswordHash IS NOT NULL');
+        for (const user of allUsers.recordset) {
+            const isMatch = await bcrypt.compare(password, user.PasswordHash);
+            if (isMatch) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bu şifre kullanılamaz, lütfen farklı bir şifre belirleyin.'
+                });
+            }
         }
 
         // 3. Şifreyi Hash'leme
@@ -72,20 +85,22 @@ const registerUser = async (req, res) => {
             // SQL'deki INSERTED.* ile eklenen kaydın verilerini geri alıyoruz
             .query(`
                 INSERT INTO Users (FullName, Email, PasswordHash) 
-                OUTPUT INSERTED.Id, INSERTED.FullName, INSERTED.Email 
+                OUTPUT INSERTED.Id, INSERTED.FullName, INSERTED.Email, INSERTED.Role 
                 VALUES (@FullName, @Email, @PasswordHash)
             `);
 
         const newUser = result.recordset[0];
+        const token = signToken(newUser);
 
-        // 5. Başarılı yanıt dönme (Şifresiz)
         return res.status(201).json({
             success: true,
             message: 'Kullanıcı başarıyla oluşturuldu.',
+            token,
             user: {
                 id: newUser.Id,
                 full_name: newUser.FullName,
-                email: newUser.Email
+                email: newUser.Email,
+                role: newUser.Role || 'User',
             }
         });
 
@@ -123,7 +138,7 @@ const loginUser = async (req, res) => {
         const pool = await sql.connect(config);
         const result = await pool.request()
             .input('Email', sql.NVARCHAR, email)
-            .query('SELECT Id, FullName, Email, PasswordHash FROM Users WHERE Email = @Email');
+            .query('SELECT Id, FullName, Email, PasswordHash, Role FROM Users WHERE Email = @Email');
 
         const user = result.recordset[0];
 
@@ -145,13 +160,17 @@ const loginUser = async (req, res) => {
         }
 
         // 4. Başarılı giriş yanıtı (Şifre asla döndürülmez)
+        const token = signToken(user);
+
         return res.status(200).json({
             success: true,
             message: 'Giriş başarılı.',
+            token,
             user: {
                 id: user.Id,
                 full_name: user.FullName,
-                email: user.Email
+                email: user.Email,
+                role: user.Role || 'User',
             }
         });
 
@@ -222,7 +241,8 @@ const updateUser = async (req, res) => {
             return dbNotConfigured(res);
         }
 
-        const { id, full_name, email } = req.body;
+        const id = req.user?.userId ?? req.body.id;
+        const { full_name, email } = req.body;
 
         if (!id || !full_name || !email) {
             return res.status(400).json({
@@ -303,7 +323,8 @@ const changePassword = async (req, res) => {
     try {
         if (!config) return dbNotConfigured(res);
 
-        const { id, old_password, new_password } = req.body;
+        const id = req.user?.userId ?? req.body.id;
+        const { old_password, new_password } = req.body;
 
         if (!id || !old_password || !new_password) {
             return res.status(400).json({ success: false, message: 'Lütfen tüm alanları doldurun.' });
@@ -351,7 +372,7 @@ const deleteAccount = async (req, res) => {
     try {
         if (!config) return dbNotConfigured(res);
 
-        const { id } = req.body;
+        const id = req.user?.userId ?? req.body.id;
 
         if (!id) {
             return res.status(400).json({ success: false, message: 'Geçersiz istek.' });

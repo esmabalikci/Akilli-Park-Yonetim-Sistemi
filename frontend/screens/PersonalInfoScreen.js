@@ -4,11 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch, saveSession } from '../utils/apiClient';
 import TurkishTextInput from '../components/TurkishTextInput';
 
 export default function PersonalInfoScreen({ navigation }) {
-  const { user, setUser } = useUser();
+  const { user, setUser, token } = useUser();
   const { isDark } = useTheme();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -32,21 +32,19 @@ export default function PersonalInfoScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/auth/update`, {
+      const { response, data } = await apiFetch('/api/auth/update', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: user.id,
           full_name: fullName.trim(),
           email: email.trim(),
         }),
       });
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (response.ok && data.success) {
         setUser(data.user);
+        if (token) {
+          await saveSession(data.user, token);
+        }
         setIsEditing(false); // Başarılı olunca düzenleme modundan çık
         Alert.alert('Başarılı', data.message);
       } else {

@@ -1,18 +1,9 @@
 const express = require('express');
+const { getPool, dbNotConfigured, toIso, sql, config } = require('../utils/dbHelpers');
+const { sendExpoPush } = require('../services/pushService');
+const { optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
-
-let notifications = [
-  {
-    id: 1,
-    userId: null,
-    type: 'system',
-    title: 'Hoş geldiniz',
-    message: 'Akıllı Piknik Alanı Yönetim Sistemine hoş geldiniz.',
-    read: false,
-    createdAt: new Date().toISOString(),
-  },
-];
 
 function turkeyDateKey(isoOrDate) {
   const date = new Date(isoOrDate);
@@ -33,16 +24,29 @@ function turkeyTimeLabel(isoOrDate) {
   }).format(new Date(isoOrDate));
 }
 
-/** Rezervasyon günü geldiğinde gösterilecek bildirimler */
-function buildUpcomingReservationNotifications(userId) {
+function mapNotificationRow(row) {
+  return {
+    id: row.Id,
+    userId: row.UserId,
+    type: row.Type,
+    title: row.Title,
+    message: row.Message,
+    read: Boolean(row.IsRead),
+    createdAt: toIso(row.CreatedAt),
+  };
+}
+
+/** Rezervasyon günü geldiğinde gösterilecek bildirimler (dinamik, DB'ye yazılmaz) */
+async function buildUpcomingReservationNotifications(userId) {
   if (!userId) return [];
 
-  const { getReservations } = require('./reservations');
+  const { getReservationsFromDb } = require('./reservations');
   const todayKey = turkeyDateKey(new Date());
   const now = new Date();
 
-  return getReservations()
-    .filter((r) => r.UserId === userId)
+  const reservations = await getReservationsFromDb(userId);
+
+  return reservations
     .filter((r) => turkeyDateKey(r.StartTime) === todayKey)
     .filter((r) => new Date(r.EndTime) > now)
     .map((r) => ({
@@ -57,54 +61,103 @@ function buildUpcomingReservationNotifications(userId) {
     }));
 }
 
-function addNotification({ userId, type, title, message }) {
-  const entry = {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    userId: userId ?? null,
-    type: type || 'system',
-    title,
-    message,
-    read: false,
-    createdAt: new Date().toISOString(),
-  };
-  notifications.unshift(entry);
-  return entry;
+async function addNotification({ userId, type, title, message }) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input('UserId', sql.Int, userId ?? null)
+    .input('Type', sql.NVarChar, type || 'system')
+    .input('Title', sql.NVarChar, title)
+    .input('Message', sql.NVarChar, message)
+    .query(`
+      INSERT INTO Notifications (UserId, Type, Title, Message, IsRead)
+      OUTPUT INSERTED.Id, INSERTED.UserId, INSERTED.Type, INSERTED.Title,
+             INSERTED.Message, INSERTED.IsRead, INSERTED.CreatedAt
+      VALUES (@UserId, @Type, @Title, @Message, 0)
+    `);
+
+  const row = mapNotificationRow(result.recordset[0]);
+
+  if (userId) {
+    sendExpoPush(userId, { title, message, data: { type: type || 'system' } });
+  }
+
+  return row;
 }
 
-router.get('/notifications', (req, res) => {
-  const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
+router.get('/notifications', optionalAuth, async (req, res) => {
+  try {
+    if (!config) {
+      return dbNotConfigured(res);
+    }
 
-  let stored = notifications;
-  if (userId) {
-    stored = notifications.filter(
-      (n) => n.userId === null || n.userId === userId
+    const userId = req.user?.userId
+      ?? (req.query.userId ? parseInt(req.query.userId, 10) : null);
+    const pool = await getPool();
+    const request = pool.request();
+
+    let query = `
+      SELECT Id, UserId, Type, Title, Message, IsRead, CreatedAt
+      FROM Notifications
+    `;
+
+    if (userId) {
+      request.input('UserId', sql.Int, userId);
+      query += ' WHERE UserId IS NULL OR UserId = @UserId';
+    }
+
+    query += ' ORDER BY CreatedAt DESC';
+
+    const result = await request.query(query);
+    const stored = result.recordset.map(mapNotificationRow);
+    const upcoming = userId ? await buildUpcomingReservationNotifications(userId) : [];
+    const merged = [...upcoming, ...stored];
+
+    merged.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+
+    res.json(merged);
+  } catch (error) {
+    console.error('Bildirimler çekilirken hata:', error);
+    res.status(500).json({ success: false, message: 'Sunucu hatası.' });
   }
-
-  const upcoming = userId ? buildUpcomingReservationNotifications(userId) : [];
-  const merged = [...upcoming, ...stored];
-
-  merged.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-
-  res.json(merged);
 });
 
-router.patch('/notifications/:id/read', (req, res) => {
-  const rawId = req.params.id;
+router.patch('/notifications/:id/read', optionalAuth, async (req, res) => {
+  try {
+    if (!config) {
+      return dbNotConfigured(res);
+    }
 
-  if (String(rawId).startsWith('upcoming-')) {
-    return res.json({ success: true });
-  }
+    const rawId = req.params.id;
 
-  const id = parseInt(rawId, 10);
-  const item = notifications.find((n) => n.id === id);
-  if (!item) {
-    return res.status(404).json({ success: false, message: 'Bildirim bulunamadı.' });
+    if (String(rawId).startsWith('upcoming-')) {
+      return res.json({ success: true });
+    }
+
+    const id = parseInt(rawId, 10);
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('Id', sql.Int, id)
+      .query(`
+        UPDATE Notifications
+        SET IsRead = 1
+        OUTPUT INSERTED.Id, INSERTED.UserId, INSERTED.Type, INSERTED.Title,
+               INSERTED.Message, INSERTED.IsRead, INSERTED.CreatedAt
+        WHERE Id = @Id
+      `);
+
+    if (!result.recordset[0]) {
+      return res.status(404).json({ success: false, message: 'Bildirim bulunamadı.' });
+    }
+
+    res.json({ success: true, notification: mapNotificationRow(result.recordset[0]) });
+  } catch (error) {
+    console.error('Bildirim okundu işaretlenirken hata:', error);
+    res.status(500).json({ success: false, message: 'Sunucu hatası.' });
   }
-  item.read = true;
-  res.json({ success: true, notification: item });
 });
 
 module.exports = { router, addNotification };

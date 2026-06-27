@@ -402,18 +402,38 @@ export const dummyParksData = {
   ],
 };
 
+const COTTAGE_COUNTS = [10, 12, 15, 18, 20, 24, 25, 30];
+
+/**
+ * Rastgele ancak tutarlı bir boyut (m²) ve çardak sayısı üretmek için yardımcı fonksiyon.
+ * Parkın id'sine göre hep aynı değerleri üretir.
+ */
+function injectSize(park) {
+  if (park.size_sqm && park.cottageCount) return park;
+  let hash = 0;
+  const strId = String(park.id);
+  for (let i = 0; i < strId.length; i++) {
+    hash = strId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // 1500 m² ile 12000 m² arasında bir değer atıyoruz
+  const size = park.size_sqm || 1500 + (Math.abs(hash) % 10500);
+  const cottageCount = park.cottageCount || COTTAGE_COUNTS[Math.abs(hash) % COTTAGE_COUNTS.length];
+  return { ...park, size_sqm: size, cottageCount };
+}
+
 /**
  * Şehir ve ilçeye göre dummy parkları getir.
  * Eşleşme bulamazsa boş dizi döner.
  */
 export function getDummyParks(city, district) {
   const key = `${city}/${district}`;
-  return dummyParksData[key] || [];
+  const parks = dummyParksData[key] || [];
+  return parks.map(injectSize);
 }
 
 /**
  * Tüm dummy parkları tek bir düz dizi olarak döner.
  */
 export function getAllDummyParks() {
-  return Object.values(dummyParksData).flat();
+  return Object.values(dummyParksData).flat().map(injectSize);
 }

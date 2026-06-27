@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,10 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getApiBaseUrl } from '../config/api';
 import { useUser } from '../context/UserContext';
+import WeatherCard from '../components/WeatherCard';
+import { fetchParkWeatherForDateTime, getParkCoords } from '../utils/weather';
+import { apiFetch } from '../utils/apiClient';
+import { getParkKey } from '../utils/parkKey';
 
 import cameraDemo from '../assets/camera-demo.mp4';
 
@@ -29,6 +33,56 @@ export default function CottageCameraScreen({ route, navigation }) {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState('date');
   const [pickerType, setPickerType] = useState('start');
+  const [reservationWeather, setReservationWeather] = useState(null);
+  const [reservationWeatherLoading, setReservationWeatherLoading] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState(null);
+  const [reservationFee, setReservationFee] = useState(50);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadReservationWeather = useCallback(async () => {
+    if (!modalVisible || !getParkCoords(park)) {
+      setReservationWeather(null);
+      return;
+    }
+    try {
+      setReservationWeatherLoading(true);
+      const data = await fetchParkWeatherForDateTime(park, startTime);
+      setReservationWeather(data);
+    } catch {
+      setReservationWeather(null);
+    } finally {
+      setReservationWeatherLoading(false);
+    }
+  }, [park, startTime, modalVisible]);
+
+  useEffect(() => {
+    loadReservationWeather();
+  }, [loadReservationWeather]);
+
+  const loadPaymentData = useCallback(async () => {
+    if (!modalVisible || !user?.id) return;
+    try {
+      const [methodsRes, feeRes] = await Promise.all([
+        apiFetch('/api/payments/methods'),
+        apiFetch('/api/payments/fee'),
+      ]);
+      if (methodsRes.response.ok) {
+        setPaymentMethods(methodsRes.data.methods || []);
+        const defaultCard = methodsRes.data.methods?.find((m) => m.isDefault);
+        setSelectedPaymentId(defaultCard?.id || methodsRes.data.methods?.[0]?.id || null);
+      }
+      if (feeRes.response.ok) {
+        setReservationFee(feeRes.data.amount || 50);
+      }
+    } catch (e) {
+      console.error('Ödeme bilgileri yüklenemedi:', e);
+    }
+  }, [modalVisible, user?.id]);
+
+  useEffect(() => {
+    loadPaymentData();
+  }, [loadPaymentData]);
 
   const handleVideoStatus = (status) => {
     if (status.didJustFinish) {
@@ -119,49 +173,49 @@ export default function CottageCameraScreen({ route, navigation }) {
   };
 
   const handleConfirmReservation = async () => {
+    if (!user?.id) {
+      Alert.alert('Giriş gerekli', 'Rezervasyon için lütfen giriş yapın.');
+      return;
+    }
     if (endTime <= startTime) {
       Alert.alert('Uyarı', 'Bitiş zamanı başlangıç zamanından sonra olmalıdır.');
       return;
     }
+    if (!selectedPaymentId) {
+      Alert.alert(
+        'Ödeme yöntemi gerekli',
+        'Rezervasyon için Profil > Ödeme Yöntemleri bölümünden kart ekleyin.'
+      );
+      return;
+    }
 
+    setSubmitting(true);
     try {
-      const baseUrl = getApiBaseUrl();
-
-      const requestBody = {
-        UserId: user?.id || 1,
-        PicnicAreaId: park?.id || park?.Id || 1,
-        ParkName: park?.name || 'Park',
-        CottageName: cottage?.name || 'Çardak',
-        StartTime: startTime.toISOString(),
-        EndTime: endTime.toISOString(),
-        Status: 'Onaylandı',
-        CreatedAt: new Date().toISOString(),
-      };
-
-      const response = await fetch(`${baseUrl}/api/reservations`, {
+      const { response, data } = await apiFetch('/api/reservations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          PicnicAreaId: getParkKey(park),
+          ParkName: park?.name || 'Park',
+          CottageName: cottage?.name || 'Çardak',
+          StartTime: startTime.toISOString(),
+          EndTime: endTime.toISOString(),
+          Status: 'Onaylandı',
+          PaymentMethodId: selectedPaymentId,
+        }),
       });
-
-      const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success !== false) {
         setModalVisible(false);
-
-        navigation.navigate('ReservationScreen', {
-          reservation: requestBody,
-        });
-
+        navigation.navigate('ReservationScreen');
         return;
       }
 
       Alert.alert('Hata', data.message || 'Rezervasyon kaydedilemedi.');
     } catch (error) {
       console.error('Rezervasyon kayıt hatası:', error);
-      Alert.alert('Hata', 'Sunucuya bağlanılamadı. Backend çalışıyor mu kontrol edin.');
+      Alert.alert('Hata', error.message || 'Sunucuya bağlanılamadı.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -255,6 +309,35 @@ export default function CottageCameraScreen({ route, navigation }) {
               <Text style={styles.durationText}>{getReservationDuration()}</Text>
             </View>
 
+            <WeatherCard
+              variant="reservation"
+              loading={reservationWeatherLoading}
+              error={getParkCoords(park) ? null : 'no_coords'}
+              forecast={reservationWeather?.forecast}
+            />
+
+            <Text style={styles.fieldLabel}>Ödeme ({reservationFee} ₺)</Text>
+            {paymentMethods.length === 0 ? (
+              <Text style={styles.paymentHint}>
+                Kayıtlı kart yok. Profil → Ödeme Yöntemleri bölümünden kart ekleyin.
+              </Text>
+            ) : (
+              paymentMethods.map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.paymentOption,
+                    selectedPaymentId === m.id && styles.paymentOptionActive,
+                  ]}
+                  onPress={() => setSelectedPaymentId(m.id)}
+                >
+                  <Text style={styles.paymentOptionText}>
+                    {m.cardBrand} •••• {m.cardLastFour} {m.isDefault ? '(Varsayılan)' : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+
             {showPicker && (
               <DateTimePicker
                 value={pickerType === 'start' ? startTime : endTime}
@@ -267,10 +350,13 @@ export default function CottageCameraScreen({ route, navigation }) {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.confirmBtn]}
+                style={[styles.modalBtn, styles.confirmBtn, submitting && { opacity: 0.7 }]}
                 onPress={handleConfirmReservation}
+                disabled={submitting}
               >
-                <Text style={styles.modalBtnText}>Rezervasyonu Onayla</Text>
+                <Text style={styles.modalBtnText}>
+                  {submitting ? 'İşleniyor...' : `Rezervasyonu Onayla (${reservationFee} ₺)`}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -436,6 +522,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  paymentHint: {
+    fontSize: 13,
+    color: '#b45309',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  paymentOption: {
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: '#f0fdf4',
+  },
+  paymentOptionActive: {
+    borderColor: '#059669',
+    backgroundColor: '#d1fae5',
+  },
+  paymentOptionText: {
+    color: '#065f46',
+    fontWeight: '700',
+    fontSize: 14,
   },
   modalButtons: {
     flexDirection: 'row',

@@ -32,7 +32,7 @@ const COLORS = {
 };
 
 export default function LoginScreen({ navigation }) {
-    const { setUser } = useUser();
+    const { setSession } = useUser();
     const { isDark } = useTheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -83,13 +83,8 @@ export default function LoginScreen({ navigation }) {
             const data = await response.json();
 
             if (response.ok && data.success) {
-                setUser(data.user);
-                Alert.alert('Başarılı', data.message || 'Giriş başarılı.', [
-                    {
-                        text: 'Tamam',
-                        onPress: () => navigation.replace('Home', { user: data.user }),
-                    },
-                ]);
+                await setSession(data.user, data.token);
+                navigation.replace('Home', { user: data.user });
             } else {
                 Alert.alert('Hata', data.message || 'Giriş başarısız.');
             }
