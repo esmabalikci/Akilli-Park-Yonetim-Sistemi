@@ -9,7 +9,7 @@ import {
     Alert,
     SafeAreaView,
 } from 'react-native';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 
 export default function EventsScreen() {
     const [events, setEvents] = useState([]);
@@ -18,11 +18,8 @@ export default function EventsScreen() {
 
     const fetchEvents = async () => {
         try {
-            const baseUrl = getApiBaseUrl();
-            const response = await fetch(`${baseUrl}/api/events`);
-            const data = await response.json();
-
-            if (Array.isArray(data)) {
+            const { response, data } = await apiFetch('/api/events');
+            if (response.ok && Array.isArray(data)) {
                 setEvents(data);
             } else {
                 setEvents([]);
@@ -41,16 +38,9 @@ export default function EventsScreen() {
 
     const handleJoin = async (eventId) => {
         try {
-            const baseUrl = getApiBaseUrl();
-
-            const response = await fetch(`${baseUrl}/api/events/${eventId}/join`, {
+            const { response, data } = await apiFetch(`/api/events/${eventId}/join`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
             });
-
-            const data = await response.json();
 
             if (response.ok && data.success) {
                 Alert.alert('Başarılı', data.message);

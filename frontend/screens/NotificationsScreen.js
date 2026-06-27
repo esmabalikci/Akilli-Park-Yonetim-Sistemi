@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import { useUser } from '../context/UserContext';
 import ScreenHeader from '../components/ScreenHeader';
 import { theme } from '../theme/colors';
@@ -32,14 +32,12 @@ export default function NotificationsScreen({ navigation }) {
 
   const fetchNotifications = async () => {
     try {
-      const baseUrl = getApiBaseUrl();
-      const userId = user?.id;
-      const url = userId
-        ? `${baseUrl}/api/notifications?userId=${userId}`
-        : `${baseUrl}/api/notifications`;
-      const response = await fetch(url);
-      const data = await response.json();
-      setItems(Array.isArray(data) ? data : []);
+      const { response, data } = await apiFetch('/api/notifications');
+      if (response.ok) {
+        setItems(Array.isArray(data) ? data : []);
+      } else {
+        setItems([]);
+      }
     } catch (error) {
       console.error('Bildirimler yüklenemedi:', error);
       setItems([]);
@@ -58,8 +56,7 @@ export default function NotificationsScreen({ navigation }) {
 
   const markRead = async (id) => {
     try {
-      const baseUrl = getApiBaseUrl();
-      await fetch(`${baseUrl}/api/notifications/${id}/read`, { method: 'PATCH' });
+      await apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
       setItems((prev) =>
         prev.map((n) =>
           String(n.id) === String(id) ? { ...n, read: true } : n

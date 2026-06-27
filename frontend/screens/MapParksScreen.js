@@ -275,15 +275,13 @@ export default function MapParksScreen({ route, navigation }) {
         const { status } = await Location.requestForegroundPermissionsAsync();
         let uLoc = null;
         if (status === 'granted') {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
+          // Konumu Gümüşhane olarak sabitledik (Kullanıcı İsteği)
           uLoc = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
+            latitude: 40.4608,
+            longitude: 39.4803,
           };
           setUserLocation(uLoc);
-          console.log('Kullanıcı konumu:', uLoc.latitude, uLoc.longitude);
+          console.log('Kullanıcı konumu (Gümüşhane sabit):', uLoc.latitude, uLoc.longitude);
         } else {
           setUserLocation(null);
         }

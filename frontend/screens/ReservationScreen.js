@@ -7,13 +7,22 @@ import {
     ActivityIndicator,
     TouchableOpacity,
     RefreshControl,
+    Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
+import StarRating from '../components/StarRating';
+import TurkishTextInput from '../components/TurkishTextInput';
+import {
+    fetchPendingReservationSurveys,
+    submitReservationSurvey,
+    ratingLabel,
+} from '../utils/parkReviews';
 import { theme } from '../theme/colors';
 import { formatTurkeyDateTime } from '../utils/dateTime';
 
@@ -23,6 +32,10 @@ export default function ReservationScreen({ navigation }) {
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [pendingSurvey, setPendingSurvey] = useState(null);
+    const [surveyRating, setSurveyRating] = useState(0);
+    const [surveyText, setSurveyText] = useState('');
+    const [submittingSurvey, setSubmittingSurvey] = useState(false);
 
     // Tema Renkleri
     const bg = isDark ? '#0f172a' : '#e6f7f5';
@@ -32,18 +45,25 @@ export default function ReservationScreen({ navigation }) {
     const textMuted = isDark ? '#64748b' : theme.textMuted;
     const borderColor = isDark ? '#334155' : theme.border;
 
+    const checkPendingSurveys = async () => {
+        if (!user?.id) return;
+        try {
+            const pending = await fetchPendingReservationSurveys();
+            if (pending.length > 0) {
+                setPendingSurvey(pending[0]);
+                setSurveyRating(0);
+                setSurveyText('');
+            }
+        } catch (error) {
+            console.error('Bekleyen anketler:', error);
+        }
+    };
+
     const fetchReservations = async () => {
         try {
-            const baseUrl = getApiBaseUrl();
-            const userId = user?.id;
-            const url = userId
-                ? `${baseUrl}/api/reservations?userId=${userId}`
-                : `${baseUrl}/api/reservations`;
+            const { response, data } = await apiFetch('/api/reservations');
 
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (Array.isArray(data)) {
+            if (response.ok && Array.isArray(data)) {
                 setReservations(data);
             } else {
                 setReservations([]);
@@ -61,8 +81,27 @@ export default function ReservationScreen({ navigation }) {
         useCallback(() => {
             setLoading(true);
             fetchReservations();
+            checkPendingSurveys();
         }, [user?.id])
     );
+
+    const handleSubmitSurvey = async () => {
+        if (surveyRating < 1) return;
+        setSubmittingSurvey(true);
+        try {
+            await submitReservationSurvey({
+                reservationId: pendingSurvey.reservationId,
+                rating: surveyRating,
+                text: surveyText,
+            });
+            setPendingSurvey(null);
+            await checkPendingSurveys();
+        } catch (error) {
+            console.error('Anket kaydedilemedi:', error);
+        } finally {
+            setSubmittingSurvey(false);
+        }
+    };
 
     const renderReservationItem = ({ item }) => (
         <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
@@ -134,6 +173,52 @@ export default function ReservationScreen({ navigation }) {
                     }
                 />
             )}
+            <Modal
+                visible={Boolean(pendingSurvey)}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setPendingSurvey(null)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.surveyModal, { backgroundColor: cardBg }]}>
+                        <Text style={[styles.surveyTitle, { color: textPrimary }]}>
+                            Deneyiminizi değerlendirin
+                        </Text>
+                        <Text style={[styles.surveySubtitle, { color: textSecondary }]}>
+                            {pendingSurvey?.parkName} rezervasyonunuz tamamlandı. Memnuniyet anketine katılır mısınız?
+                        </Text>
+                        <StarRating value={surveyRating} interactive onChange={setSurveyRating} size="lg" />
+                        {surveyRating > 0 && (
+                            <Text style={[styles.surveyHint, { color: textMuted }]}>
+                                {ratingLabel(surveyRating)}
+                            </Text>
+                        )}
+                        <TurkishTextInput
+                            variant="multiline"
+                            style={[styles.surveyInput, { borderColor, color: textSecondary }]}
+                            placeholder="Yorumunuz (isteğe bağlı)"
+                            placeholderTextColor={textMuted}
+                            value={surveyText}
+                            onChangeText={setSurveyText}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.surveyBtn, surveyRating < 1 && styles.surveyBtnDisabled]}
+                            onPress={handleSubmitSurvey}
+                            disabled={surveyRating < 1 || submittingSurvey}
+                        >
+                            {submittingSurvey ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.surveyBtnText}>Gönder</Text>
+                            )}
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setPendingSurvey(null)}>
+                            <Text style={[styles.surveySkip, { color: textMuted }]}>Daha sonra</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -228,5 +313,63 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '700',
         fontSize: 15,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    surveyModal: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+    },
+    surveyTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    surveySubtitle: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 20,
+    },
+    surveyHint: {
+        fontSize: 13,
+        marginTop: 8,
+        marginBottom: 12,
+    },
+    surveyInput: {
+        width: '100%',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        minHeight: 80,
+        marginTop: 12,
+        marginBottom: 16,
+        textAlignVertical: 'top',
+    },
+    surveyBtn: {
+        backgroundColor: theme.primary,
+        width: '100%',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    surveyBtnDisabled: {
+        opacity: 0.5,
+    },
+    surveyBtnText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 16,
+    },
+    surveySkip: {
+        marginTop: 14,
+        fontSize: 14,
+        fontWeight: '600',
     },
 });

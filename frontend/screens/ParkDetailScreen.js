@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,30 @@ import {
   Modal,
   Platform,
   ActivityIndicator,
-  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import { useUser } from '../context/UserContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useTheme } from '../context/ThemeContext';
 import TurkishTextInput from '../components/TurkishTextInput';
+import StarRating from '../components/StarRating';
+import WeatherCard from '../components/WeatherCard';
+import {
+  fetchParkReviews,
+  submitParkReview,
+  updateParkReview,
+  deleteParkReview,
+  ratingLabel,
+} from '../utils/parkReviews';
+import {
+  fetchParkWeatherToday,
+  fetchParkWeatherForDateTime,
+  getParkCoords,
+} from '../utils/weather';
 import {
   formatTurkeyDateTime,
   getNowForPicker,
@@ -32,10 +47,16 @@ export default function ParkDetailScreen({ route, navigation }) {
   const { user } = useUser();
   const { isThemeDark, isDark } = useTheme();
   const themeDark = isDark || isThemeDark; // fallback handle
-  const { isFavorite, toggleFavorite, addComment, getComments, deleteComment, editComment } = useFavorites();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const [commentText, setCommentText] = useState('');
-  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [newRating, setNewRating] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [reviewStats, setReviewStats] = useState({ averageRating: 0, count: 0 });
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [editingRating, setEditingRating] = useState(0);
   const [editingText, setEditingText] = useState('');
 
   // Tema Renkleri
@@ -48,7 +69,29 @@ export default function ParkDetailScreen({ route, navigation }) {
   const modalBg = themeDark ? '#1e293b' : '#ffffff';
 
   const favorited = isFavorite(park);
-  const parkComments = getComments(park);
+
+  const loadReviews = useCallback(async () => {
+    try {
+      setLoadingReviews(true);
+      const data = await fetchParkReviews(park);
+      setReviews(data.reviews);
+      setReviewStats(data.stats);
+    } catch (error) {
+      console.error('Değerlendirmeler yüklenemedi:', error);
+      setReviews([]);
+      setReviewStats({ averageRating: 0, count: 0 });
+    } finally {
+      setLoadingReviews(false);
+    }
+  }, [park]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadReviews();
+    }, [loadReviews])
+  );
+
+  const myReview = reviews.find((r) => r.userId === user?.id);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +103,57 @@ export default function ParkDetailScreen({ route, navigation }) {
   const [pickerField, setPickerField] = useState('start');
   const [pickerStep, setPickerStep] = useState('date');
   const [pickerDraft, setPickerDraft] = useState(() => getNowForPicker());
+
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState(null);
+  const [todayWeather, setTodayWeather] = useState(null);
+  const [reservationWeather, setReservationWeather] = useState(null);
+  const [reservationWeatherLoading, setReservationWeatherLoading] = useState(false);
+
+  const loadTodayWeather = useCallback(async () => {
+    if (!getParkCoords(park)) {
+      setWeatherError('no_coords');
+      setWeatherLoading(false);
+      return;
+    }
+    try {
+      setWeatherLoading(true);
+      setWeatherError(null);
+      const data = await fetchParkWeatherToday(park);
+      setTodayWeather(data);
+    } catch (error) {
+      setWeatherError(error.message || 'Hava durumu alınamadı.');
+      setTodayWeather(null);
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, [park]);
+
+  const loadReservationWeather = useCallback(async () => {
+    if (!modalVisible || !getParkCoords(park)) {
+      setReservationWeather(null);
+      return;
+    }
+    try {
+      setReservationWeatherLoading(true);
+      const data = await fetchParkWeatherForDateTime(park, startTime);
+      setReservationWeather(data);
+    } catch (error) {
+      setReservationWeather(null);
+    } finally {
+      setReservationWeatherLoading(false);
+    }
+  }, [park, startTime, modalVisible]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTodayWeather();
+    }, [loadTodayWeather])
+  );
+
+  useEffect(() => {
+    loadReservationWeather();
+  }, [loadReservationWeather]);
 
   const openReservationModal = useCallback(() => {
     const now = getNowForPicker();
@@ -120,30 +214,25 @@ export default function ParkDetailScreen({ route, navigation }) {
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert('Giriş gerekli', 'Rezervasyon için lütfen giriş yapın.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const baseUrl = getApiBaseUrl();
-
-      const requestBody = {
-        UserId: user?.id || 1,
-        PicnicAreaId: park.id || park.Id || 1,
-        ParkName: park.name || 'Park adı yok',
-        StartTime: startTime.toISOString(),
-        EndTime: endTime.toISOString(),
-        Status: 'Onaylandı',
-        CreatedAt: new Date().toISOString(),
-      };
-
-      const response = await fetch(`${baseUrl}/api/reservations`, {
+      const { response, data } = await apiFetch('/api/reservations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          PicnicAreaId: park.id || park.Id || 1,
+          ParkName: park.name || 'Park adı yok',
+          StartTime: startTime.toISOString(),
+          EndTime: endTime.toISOString(),
+          Status: 'Onaylandı',
+          SkipPayment: true,
+        }),
       });
-
-      const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success !== false) {
         setModalVisible(false);
@@ -166,42 +255,76 @@ export default function ParkDetailScreen({ route, navigation }) {
   const pickerMinimumDate =
     pickerField === 'end' ? startTime : getNowForPicker();
 
-  const handleSubmitComment = () => {
-    if (!commentText.trim()) {
-      Alert.alert('Uyarı', 'Lütfen yorum yazın.');
+  const handleSubmitReview = async () => {
+    if (!user?.id) {
+      Alert.alert('Giriş gerekli', 'Değerlendirme yapmak için lütfen giriş yapın.');
       return;
     }
-    const ok = addComment(park, commentText, user);
-    if (ok) {
+    if (newRating < 1) {
+      Alert.alert('Uyarı', 'Lütfen 1–5 arası yıldız puanı verin.');
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await submitParkReview({
+        park,
+        rating: newRating,
+        text: commentText,
+      });
+      if (!favorited) {
+        await toggleFavorite(park);
+      }
       setCommentText('');
+      setNewRating(0);
+      await loadReviews();
+      Alert.alert('Teşekkürler', 'Değerlendirmeniz kaydedildi.');
+    } catch (error) {
+      Alert.alert('Hata', error.message || 'Değerlendirme kaydedilemedi.');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
-  const handleDeleteComment = (commentId) => {
-    Alert.alert('Sil', 'Bu yorumu silmek istediğinize emin misiniz?', [
+  const handleDeleteReview = (reviewId) => {
+    Alert.alert('Sil', 'Bu değerlendirmeyi silmek istediğinize emin misiniz?', [
       { text: 'İptal', style: 'cancel' },
       {
         text: 'Sil',
         style: 'destructive',
-        onPress: () => deleteComment(park, commentId),
+        onPress: async () => {
+          try {
+            await deleteParkReview({ reviewId });
+            await loadReviews();
+          } catch (error) {
+            Alert.alert('Hata', error.message || 'Silinemedi.');
+          }
+        },
       },
     ]);
   };
 
-  const handleStartEdit = (comment) => {
-    setEditingCommentId(comment.id);
-    setEditingText(comment.text);
+  const handleStartEditReview = (review) => {
+    setEditingReview(review);
+    setEditingRating(review.rating);
+    setEditingText(review.text || '');
   };
 
-  const handleSaveEdit = (commentId) => {
-    if (!editingText.trim()) {
-      Alert.alert('Uyarı', 'Yorum boş olamaz.');
+  const handleSaveEditReview = async () => {
+    if (editingRating < 1) {
+      Alert.alert('Uyarı', 'Lütfen 1–5 arası yıldız puanı verin.');
       return;
     }
-    const ok = editComment(park, commentId, editingText);
-    if (ok) {
-      setEditingCommentId(null);
-      setEditingText('');
+    try {
+      await updateParkReview({
+        reviewId: editingReview.id,
+        rating: editingRating,
+        text: editingText,
+      });
+      setEditingReview(null);
+      await loadReviews();
+    } catch (error) {
+      Alert.alert('Hata', error.message || 'Güncellenemedi.');
     }
   };
 
@@ -224,11 +347,19 @@ export default function ParkDetailScreen({ route, navigation }) {
   };
   
   return (
-    <ScrollView style={[styles.container, { backgroundColor: bg }]}>
+    <ScrollView style={[styles.container, { backgroundColor: bg }]} bounces={false}>
       <Image 
         source={{ uri: park.image && park.image.trim() !== '' ? park.image : getFallbackImage(park.id || park.name) }} 
         style={styles.image} 
       />
+
+      {/* Yüzen Geri Butonu */}
+      <TouchableOpacity 
+        style={styles.floatingBackBtn} 
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="arrow-back" size={24} color="#fff" />
+      </TouchableOpacity>
 
       <View style={[styles.content, { backgroundColor: bg }]}>
         <View style={styles.header}>
@@ -236,7 +367,12 @@ export default function ParkDetailScreen({ route, navigation }) {
 
           <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => toggleFavorite(park)}
+              onPress={async () => {
+                const result = await toggleFavorite(park);
+                if (result && !result.ok) {
+                  Alert.alert('Favoriler', result.message || 'İşlem yapılamadı.');
+                }
+              }}
               hitSlop={12}
               style={styles.favBtn}
             >
@@ -260,6 +396,15 @@ export default function ParkDetailScreen({ route, navigation }) {
         </View>
 
         <Text style={[styles.location, { color: textPrimary }]}>📍 {park.location}</Text>
+
+        <WeatherCard
+          variant="detail"
+          loading={weatherLoading}
+          error={weatherError}
+          current={todayWeather?.current}
+          daily={todayWeather?.daily}
+          themeDark={themeDark}
+        />
 
         <View style={styles.infoGrid}>
           <View style={[styles.infoItem, { backgroundColor: cardBg, borderColor: themeDark ? '#475569' : '#34d399', borderWidth: themeDark ? 1 : 0 }]}>
@@ -297,45 +442,103 @@ export default function ParkDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Açıklama</Text>
-        <Text style={[styles.description, { color: textSecondary }]}>{park.description}</Text>
 
-        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Yorumlar</Text>
-        <View style={styles.commentInputRow}>
-          <TurkishTextInput
-            variant="multiline"
-            style={[styles.commentInput, { backgroundColor: inputBg, borderColor: inputBorder, color: textSecondary }]}
-            placeholder="Park hakkında yorumunuz..."
-            placeholderTextColor="#94a3b8"
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-          />
-          <TouchableOpacity style={styles.commentSendBtn} onPress={handleSubmitComment}>
-            <Ionicons name="send" size={20} color="#fff" />
-          </TouchableOpacity>
+
+        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Değerlendirmeler</Text>
+
+        <View style={[styles.reviewSummaryCard, { backgroundColor: cardBg, borderColor: themeDark ? '#334155' : '#a7f3d0' }]}>
+          {loadingReviews ? (
+            <ActivityIndicator color="#10b981" />
+          ) : reviewStats.count > 0 ? (
+            <>
+              <Text style={[styles.reviewAvg, { color: textPrimary }]}>
+                {reviewStats.averageRating.toFixed(1)}
+              </Text>
+              <StarRating value={reviewStats.averageRating} size="md" />
+              <Text style={[styles.reviewCount, { color: textSecondary }]}>
+                {reviewStats.count} değerlendirme
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.noComments, { color: textSecondary, marginBottom: 0 }]}>
+              Henüz değerlendirme yok. İlk puanı siz verin.
+            </Text>
+          )}
         </View>
-        {parkComments.length === 0 ? (
-          <Text style={[styles.noComments, { color: textSecondary }]}>Henüz yorum yok. İlk yorumu siz yazın.</Text>
-        ) : (
-          parkComments.map((c) => (
+
+        {!myReview && user?.id && (
+          <View style={[styles.reviewFormCard, { backgroundColor: cardBg, borderColor: themeDark ? '#334155' : '#d1fae5' }]}>
+            <Text style={[styles.reviewFormLabel, { color: textPrimary }]}>Puanınız</Text>
+            <StarRating value={newRating} interactive onChange={setNewRating} size="lg" />
+            {newRating > 0 && (
+              <Text style={[styles.ratingHint, { color: textSecondary }]}>
+                {ratingLabel(newRating)}
+              </Text>
+            )}
+            <TurkishTextInput
+              variant="multiline"
+              style={[styles.commentInput, styles.reviewTextInput, { backgroundColor: inputBg, borderColor: inputBorder, color: textSecondary }]}
+              placeholder="Deneyiminizi paylaşın (isteğe bağlı)..."
+              placeholderTextColor="#94a3b8"
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.reviewSubmitBtn, submittingReview && styles.btnDisabled]}
+              onPress={handleSubmitReview}
+              disabled={submittingReview}
+            >
+              {submittingReview ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.reviewSubmitText}>Değerlendirmeyi Gönder</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!user?.id && (
+          <View style={[styles.myReviewBanner, { backgroundColor: themeDark ? '#1e293b' : '#f1f5f9' }]}>
+            <Ionicons name="log-in-outline" size={18} color="#64748b" />
+            <Text style={[styles.myReviewBannerText, { color: textSecondary }]}>
+              Değerlendirme yapmak ve puan vermek için giriş yapın.
+            </Text>
+          </View>
+        )}
+
+        {myReview && (
+          <View style={[styles.myReviewBanner, { backgroundColor: themeDark ? '#064e3b' : '#ecfdf5' }]}>
+            <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+            <Text style={[styles.myReviewBannerText, { color: textPrimary }]}>
+              Bu park için değerlendirmeniz kayıtlı. Aşağıdan düzenleyebilirsiniz.
+            </Text>
+          </View>
+        )}
+
+        {reviews.length === 0 && !loadingReviews ? null : (
+          reviews.map((c) => (
             <View key={c.id} style={[styles.commentCard, { backgroundColor: cardBg, borderColor: themeDark ? '#334155' : 'transparent', borderWidth: themeDark ? 1 : 0 }]}>
               <View style={styles.commentHeader}>
-                <Text style={styles.commentAuthor}>{c.userName}</Text>
+                <View style={styles.reviewAuthorBlock}>
+                  <Text style={styles.commentAuthor}>{c.userName}</Text>
+                  <StarRating value={c.rating} size="sm" />
+                </View>
                 {user?.id === c.userId && (
                   <View style={styles.commentActions}>
-                    <TouchableOpacity onPress={() => handleStartEdit(c)} style={styles.actionBtn}>
+                    <TouchableOpacity onPress={() => handleStartEditReview(c)} style={styles.actionBtn}>
                       <Ionicons name="pencil" size={16} color="#059669" />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteComment(c.id)} style={styles.actionBtn}>
+                    <TouchableOpacity onPress={() => handleDeleteReview(c.id)} style={styles.actionBtn}>
                       <Ionicons name="trash" size={16} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
 
-              {editingCommentId === c.id ? (
+              {editingReview?.id === c.id ? (
                 <View style={styles.editCommentContainer}>
+                  <StarRating value={editingRating} interactive onChange={setEditingRating} size="md" />
                   <TurkishTextInput
                     variant="multiline"
                     style={[styles.editCommentInput, { backgroundColor: inputBg, color: textSecondary, borderColor: themeDark ? '#475569' : '#34d399' }]}
@@ -344,19 +547,23 @@ export default function ParkDetailScreen({ route, navigation }) {
                     multiline
                   />
                   <View style={styles.editActions}>
-                    <TouchableOpacity style={styles.editBtnSave} onPress={() => handleSaveEdit(c.id)}>
+                    <TouchableOpacity style={styles.editBtnSave} onPress={handleSaveEditReview}>
                       <Text style={styles.editBtnText}>Kaydet</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.editBtnCancel} onPress={() => setEditingCommentId(null)}>
+                    <TouchableOpacity style={styles.editBtnCancel} onPress={() => setEditingReview(null)}>
                       <Text style={styles.editBtnText}>İptal</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ) : (
                 <>
-                  <Text style={[styles.commentBody, { color: textSecondary }]}>{c.text}</Text>
+                  {c.text ? (
+                    <Text style={[styles.commentBody, { color: textSecondary }]}>{c.text}</Text>
+                  ) : null}
                   <Text style={[styles.commentDate, { color: themeDark ? '#64748b' : '#94a3b8' }]}>
-                    {formatTurkeyDateTime(c.createdAt)} {c.isEdited && '(Düzenlendi)'}
+                    {formatTurkeyDateTime(c.createdAt)}
+                    {c.updatedAt ? ' (Güncellendi)' : ''}
+                    {c.sourceType === 'reservation' ? ' · Rezervasyon sonrası' : ''}
                   </Text>
                 </>
               )}
@@ -365,11 +572,11 @@ export default function ParkDetailScreen({ route, navigation }) {
         )}
 
         <TouchableOpacity
-          style={styles.reserveButton}
-          onPress={openReservationModal}
-        >
-          <Text style={styles.reserveButtonText}>Rezervasyon Yap</Text>
-        </TouchableOpacity>
+  style={styles.reserveButton}
+  onPress={() => navigation.navigate('CottageSelectionScreen', { park })}
+>
+  <Text style={styles.reserveButtonText}>Çardak Seç</Text>
+</TouchableOpacity>
       </View>
 
       <Modal
@@ -405,6 +612,14 @@ export default function ParkDetailScreen({ route, navigation }) {
                 {formatTurkeyDateTime(endTime)}
               </Text>
             </View>
+
+            <WeatherCard
+              variant="reservation"
+              loading={reservationWeatherLoading}
+              error={getParkCoords(park) ? null : 'no_coords'}
+              forecast={reservationWeather?.forecast}
+              themeDark={themeDark}
+            />
 
             {showPicker && (
               <DateTimePicker
@@ -455,6 +670,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 280,
   },
+  floatingBackBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
   content: {
     padding: 24,
     backgroundColor: '#ecfdf5',
@@ -487,6 +714,74 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     marginBottom: 12,
+  },
+  reviewSummaryCard: {
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  reviewAvg: {
+    fontSize: 36,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  reviewCount: {
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: '600',
+  },
+  reviewFormCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  reviewFormLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  ratingHint: {
+    fontSize: 13,
+    marginTop: 6,
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+  reviewTextInput: {
+    marginTop: 12,
+    width: '100%',
+    maxHeight: 120,
+  },
+  reviewSubmitBtn: {
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  reviewSubmitText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  myReviewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  myReviewBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  reviewAuthorBlock: {
+    flex: 1,
+    gap: 4,
   },
   commentInput: {
     flex: 1,

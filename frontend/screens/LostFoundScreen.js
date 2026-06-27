@@ -13,7 +13,7 @@ import {
     Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import TurkishTextInput from '../components/TurkishTextInput';
 import { useUser } from '../context/UserContext';
 
@@ -35,11 +35,8 @@ export default function LostFoundScreen() {
 
     const fetchItems = async () => {
         try {
-            const baseUrl = getApiBaseUrl();
-            const response = await fetch(`${baseUrl}/api/lost-found`);
-            const data = await response.json();
-
-            if (Array.isArray(data)) {
+            const { response, data } = await apiFetch('/api/lost-found');
+            if (response.ok && Array.isArray(data)) {
                 setItems(data);
             } else {
                 setItems([]);
@@ -71,10 +68,13 @@ export default function LostFoundScreen() {
             return;
         }
 
+        if (!user?.id) {
+            Alert.alert('Giriş gerekli', 'İlan oluşturmak için lütfen giriş yapın.');
+            return;
+        }
+
         try {
-            const baseUrl = getApiBaseUrl();
             const requestBody = {
-                UserId: user?.id || 1,
                 Type: type,
                 ItemName: itemName,
                 Description: description,
@@ -83,21 +83,16 @@ export default function LostFoundScreen() {
                 Status: 'Açık',
             };
 
-            const url = editingItemId 
-                ? `${baseUrl}/api/lost-found/${editingItemId}`
-                : `${baseUrl}/api/lost-found`;
-            
+            const path = editingItemId
+                ? `/api/lost-found/${editingItemId}`
+                : '/api/lost-found';
+
             const method = editingItemId ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
+            const { response, data } = await apiFetch(path, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify(requestBody),
             });
-
-            const data = await response.json();
 
             if (response.ok && data.success) {
                 Alert.alert('Başarılı', editingItemId ? 'İlan güncellendi.' : 'İlan oluşturuldu.');
@@ -124,11 +119,9 @@ export default function LostFoundScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const baseUrl = getApiBaseUrl();
-                            const response = await fetch(`${baseUrl}/api/lost-found/${id}`, {
-                                method: 'DELETE'
+                            const { response, data } = await apiFetch(`/api/lost-found/${id}`, {
+                                method: 'DELETE',
                             });
-                            const data = await response.json();
                             if (response.ok && data.success) {
                                 Alert.alert('Silindi', 'İlan başarıyla silindi.');
                                 fetchItems();

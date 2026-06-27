@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
-import { getApiBaseUrl } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import TurkishTextInput from '../components/TurkishTextInput';
 
 export default function PrivacySecurityScreen({ navigation }) {
@@ -81,19 +81,14 @@ export default function PrivacySecurityScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/auth/change-password`, {
+      const { response, data } = await apiFetch('/api/auth/change-password', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: user.id,
           old_password: oldPassword,
-          new_password: newPassword
-        })
+          new_password: newPassword,
+        }),
       });
-
-      const data = await response.json();
-      if (data.success) {
+      if (response.ok && data.success) {
         Alert.alert('Başarılı', data.message);
         setPasswordModalVisible(false);
         setOldPassword('');
@@ -120,13 +115,10 @@ export default function PrivacySecurityScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              const baseUrl = getApiBaseUrl();
-              const response = await fetch(`${baseUrl}/api/auth/delete-account`, {
+              const { response, data } = await apiFetch('/api/auth/delete-account', {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: user.id })
+                body: JSON.stringify({}),
               });
-              const data = await response.json();
 
               if (data.success) {
                 Alert.alert('Silindi', data.message);

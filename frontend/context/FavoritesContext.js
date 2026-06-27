@@ -6,45 +6,43 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getParkKey, normalizeParkForStorage } from '../utils/parkKey';
-
-const STORAGE_KEY = '@apays_favorites_v1';
+import { apiFetch } from '../utils/apiClient';
+import { useUser } from './UserContext';
 
 const FavoritesContext = createContext(null);
 
 export function FavoritesProvider({ children }) {
+  const { user, token } = useUser();
   const [favorites, setFavorites] = useState([]);
-  const [commentsByPark, setCommentsByPark] = useState({});
   const [ready, setReady] = useState(false);
 
-  const save = useCallback(async (favs, comments) => {
-    try {
-      await AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ favorites: favs, commentsByPark: comments })
-      );
-    } catch (e) {
-      console.error('Favoriler kaydedilemedi:', e);
+  const loadFromServer = useCallback(async () => {
+    if (!user?.id || !token) {
+      setFavorites([]);
+      setReady(true);
+      return;
     }
-  }, []);
+
+    try {
+      const { response, data } = await apiFetch('/api/favorites');
+      if (response.ok && data.success) {
+        setFavorites(data.favorites.map((f) => f.park).filter(Boolean));
+      } else {
+        setFavorites([]);
+      }
+    } catch (error) {
+      console.error('Favoriler yüklenemedi:', error);
+      setFavorites([]);
+    } finally {
+      setReady(true);
+    }
+  }, [user?.id, token]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          setFavorites(parsed.favorites || []);
-          setCommentsByPark(parsed.commentsByPark || {});
-        }
-      } catch (e) {
-        console.error('Favoriler yüklenemedi:', e);
-      } finally {
-        setReady(true);
-      }
-    })();
-  }, []);
+    setReady(false);
+    loadFromServer();
+  }, [loadFromServer]);
 
   const isFavorite = useCallback(
     (park) => {
@@ -55,110 +53,51 @@ export function FavoritesProvider({ children }) {
   );
 
   const toggleFavorite = useCallback(
-    (park) => {
+    async (park) => {
+      if (!user?.id || !token) {
+        return { ok: false, message: 'Favoriler için giriş yapın.' };
+      }
+
       const key = getParkKey(park);
-      const normalized = normalizeParkForStorage(park);
-      setFavorites((prev) => {
-        const exists = prev.some((p) => getParkKey(p) === key);
-        const nextFavs = exists
-          ? prev.filter((p) => getParkKey(p) !== key)
-          : [normalized, ...prev];
-        save(nextFavs, commentsByPark);
-        return nextFavs;
-      });
-    },
-    [commentsByPark, save]
-  );
+      const exists = favorites.some((p) => getParkKey(p) === key);
 
-  const addComment = useCallback(
-    (park, text, author) => {
-      const key = getParkKey(park);
-      const trimmed = text?.trim();
-      if (!trimmed) return false;
+      try {
+        if (exists) {
+          const { response, data } = await apiFetch(
+            `/api/favorites/${encodeURIComponent(key)}`,
+            { method: 'DELETE' }
+          );
+          if (response.ok) {
+            setFavorites((prev) => prev.filter((p) => getParkKey(p) !== key));
+            return { ok: true };
+          }
+          return { ok: false, message: data.message };
+        }
 
-      const entry = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        parkKey: key,
-        userName: author?.full_name || 'Kullanıcı',
-        userId: author?.id ?? null,
-        text: trimmed,
-        createdAt: new Date().toISOString(),
-      };
-
-      setCommentsByPark((prevComments) => {
-        const nextComments = {
-          ...prevComments,
-          [key]: [entry, ...(prevComments[key] || [])],
-        };
-
-        setFavorites((prevFavs) => {
-          const inFavs = prevFavs.some((p) => getParkKey(p) === key);
-          const nextFavs = inFavs
-            ? prevFavs
-            : [normalizeParkForStorage(park), ...prevFavs];
-          save(nextFavs, nextComments);
-          return nextFavs;
+        const normalized = normalizeParkForStorage(park);
+        const { response, data } = await apiFetch('/api/favorites', {
+          method: 'POST',
+          body: JSON.stringify({
+            parkOsmId: key,
+            parkName: park.name,
+            parkLocation: park.location,
+            parkData: normalized,
+          }),
         });
 
-        return nextComments;
-      });
-
-      return true;
+        if (response.ok) {
+          setFavorites((prev) => [normalized, ...prev]);
+          return { ok: true };
+        }
+        return { ok: false, message: data.message };
+      } catch (error) {
+        return { ok: false, message: error.message };
+      }
     },
-    [save]
+    [favorites, user?.id, token]
   );
 
-  const getComments = useCallback(
-    (park) => commentsByPark[getParkKey(park)] || [],
-    [commentsByPark]
-  );
-
-  const deleteComment = useCallback(
-    (park, commentId) => {
-      const key = getParkKey(park);
-      setCommentsByPark((prev) => {
-        const parkComments = prev[key] || [];
-        const nextComments = {
-          ...prev,
-          [key]: parkComments.filter((c) => c.id !== commentId),
-        };
-        save(favorites, nextComments);
-        return nextComments;
-      });
-    },
-    [favorites, save]
-  );
-
-  const editComment = useCallback(
-    (park, commentId, newText) => {
-      const key = getParkKey(park);
-      const trimmed = newText?.trim();
-      if (!trimmed) return false;
-
-      setCommentsByPark((prev) => {
-        const parkComments = prev[key] || [];
-        const nextComments = {
-          ...prev,
-          [key]: parkComments.map((c) =>
-            c.id === commentId ? { ...c, text: trimmed, isEdited: true } : c
-          ),
-        };
-        save(favorites, nextComments);
-        return nextComments;
-      });
-      return true;
-    },
-    [favorites, save]
-  );
-
-  const getFavoriteWithComments = useCallback(
-    () =>
-      favorites.map((park) => ({
-        park,
-        comments: commentsByPark[getParkKey(park)] || [],
-      })),
-    [favorites, commentsByPark]
-  );
+  const getFavoriteParks = useCallback(() => favorites, [favorites]);
 
   const value = useMemo(
     () => ({
@@ -166,23 +105,10 @@ export function FavoritesProvider({ children }) {
       favorites,
       isFavorite,
       toggleFavorite,
-      addComment,
-      getComments,
-      getFavoriteWithComments,
-      deleteComment,
-      editComment,
+      getFavoriteParks,
+      refreshFavorites: loadFromServer,
     }),
-    [
-      ready,
-      favorites,
-      isFavorite,
-      toggleFavorite,
-      addComment,
-      getComments,
-      getFavoriteWithComments,
-      deleteComment,
-      editComment,
-    ]
+    [ready, favorites, isFavorite, toggleFavorite, getFavoriteParks, loadFromServer]
   );
 
   return (

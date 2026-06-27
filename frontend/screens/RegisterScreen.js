@@ -15,9 +15,11 @@ import {
 import { getApiBaseUrl } from '../config/api';
 import TurkishTextInput from '../components/TurkishTextInput';
 import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
 
 export default function RegisterScreen({ navigation }) {
     const { isDark } = useTheme();
+    const { setSession } = useUser();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [username, setUsername] = useState('');
@@ -71,12 +73,12 @@ export default function RegisterScreen({ navigation }) {
 
             const data = await response.json();
 
-            if (response.ok && data.success) {
+            if (response.ok && data.success && data.token) {
+                await setSession(data.user, data.token);
+                navigation.replace('Home', { user: data.user });
+            } else if (response.ok && data.success) {
                 Alert.alert('Başarılı', data.message || 'Kayıt başarılı. Şimdi giriş yapabilirsiniz.', [
-                    {
-                        text: 'Tamam',
-                        onPress: () => navigation.navigate('Login'),
-                    },
+                    { text: 'Tamam', onPress: () => navigation.navigate('Login') },
                 ]);
             } else {
                 Alert.alert('Hata', data.message || 'Kayıt başarısız.');

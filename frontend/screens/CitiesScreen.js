@@ -67,6 +67,7 @@ export default function CitiesScreen({ navigation }) {
   const { user } = useUser();
   const { isDark } = useTheme();
   const searchRef = useRef(null);
+  const scrollRef = useRef(null);
   const [searchText, setSearchText] = useState('');
 
   // Tema Renkleri
@@ -129,16 +130,11 @@ export default function CitiesScreen({ navigation }) {
           <Ionicons name="person-circle-outline" size={28} color={iconBtnColor} />
         </TouchableOpacity>
         <Text style={[styles.brand, { color: iconBtnColor }]}>APAYS</Text>
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => searchRef.current?.focus()}
-          hitSlop={12}
-        >
-          <Ionicons name="search-outline" size={24} color={iconBtnColor} />
-        </TouchableOpacity>
+        <View style={styles.iconBtn} />
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
